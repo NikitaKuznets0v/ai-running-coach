@@ -1,36 +1,202 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏃 AI Running Coach
 
-## Getting Started
+**Персональный AI-тренер для бегунов в Telegram**
 
-First, run the development server:
+[![Status](https://img.shields.io/badge/status-MVP%20Development-yellow)](https://github.com/yourusername/ai-running-coach)
+[![Platform](https://img.shields.io/badge/platform-Telegram-blue)](https://telegram.org/)
+[![N8N](https://img.shields.io/badge/powered%20by-N8N-orange)](https://n8n.io/)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## 🎯 О Проекте
+
+AI Running Coach - это Telegram бот с AI-тренером, который помогает бегунам тренироваться эффективно:
+
+- 🤖 **Естественное общение** - пишите текстом как с живым тренером
+- 📅 **Персональные планы** - недельные программы под ваш уровень и цель
+- 📊 **Умная адаптация** - план корректируется при пропусках тренировок
+- 🧠 **Научный подход** - основано на исследованиях спортивной физиологии
+- 💬 **Память контекста** - бот помнит всю историю общения
+
+### Что Отличает от Конкурентов
+
+- ✅ Живое общение в привычном Telegram (не статичные планы)
+- ✅ Простота ввода: "Пробежал 5км за 30мин" - и все
+- ✅ Помнит план и не "забывает" его
+- ✅ Работает на русском языке
+
+---
+
+## 📚 Документация
+
+### Основные документы:
+- **[PROJECT-WORK-PLAN.md](docs/PROJECT-WORK-PLAN.md)** ← **ГЛАВНЫЙ** план работ (читать первым!)
+- [concept.md](docs/concept.md) - Полная концепция продукта
+- [scientific-foundation.md](docs/scientific-foundation.md) - Научная база тренировок
+- [n8n-implementation-plan.md](docs/n8n-implementation-plan.md) - Технический план
+
+### Дополнительно:
+- [chat-history.md](docs/chat-history.md) - История разработки концепции
+- [research-session-2026-01-26.md](docs/research-session-2026-01-26.md) - Исследовательская сессия
+
+---
+
+## 🏗️ Архитектура
+
+### Технологический Стек
+
+**Платформа:** N8N Cloud (workflow automation)
+**AI:** OpenAI GPT-4o mini
+**База данных:** Supabase (PostgreSQL)
+**Мессенджер:** Telegram Bot API
+
+### Структура Проекта
+
+```
+ai-running-coach/
+├── docs/                    # Вся документация
+│   ├── PROJECT-WORK-PLAN.md # ГЛАВНЫЙ план работ
+│   ├── concept.md
+│   └── ...
+│
+├── n8n-workflows/           # N8N конфигурации (JSON)
+│   ├── workflow-main-chatbot.json
+│   ├── workflow-plan-generator.json
+│   └── workflow-training-logger.json
+│
+├── database/                # SQL схема и миграции
+│   ├── schema.sql
+│   ├── migrations/
+│   └── seeds/
+│
+├── prompts/                 # AI System Prompts
+│   ├── onboarding-prompt.md
+│   ├── general-chat-prompt.md
+│   ├── plan-generation-prompt.md
+│   └── training-extraction-prompt.md
+│
+└── setup/                   # Инструкции по настройке
+    ├── SETUP-GUIDE.md
+    └── API-KEYS-TEMPLATE.env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Быстрый Старт
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### MVP Scope
 
-## Learn More
+**Включено:**
+- ✅ Telegram бот с AI диалогом
+- ✅ Onboarding пользователей
+- ✅ Генерация недельных планов
+- ✅ Логирование тренировок
+- ✅ Русский язык
+- ✅ Бег на улице
 
-To learn more about Next.js, take a look at the following resources:
+**Не включено в MVP:**
+- ❌ Голосовые сообщения
+- ❌ Распознавание скриншотов
+- ❌ Английский язык
+- ❌ Тренировки для зала
+- ❌ Визуализация (Mini App)
+- ❌ Монетизация
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Этапы Разработки
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Текущий статус:** 🟡 Этап 0 - Подготовка
 
-## Deploy on Vercel
+Полный план в [PROJECT-WORK-PLAN.md](docs/PROJECT-WORK-PLAN.md)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 💰 Стоимость
+
+### Тестирование (1 пользователь, месяц):
+```
+N8N Cloud:      $0    (Free tier)
+OpenAI API:     $1    (GPT-4o mini)
+Supabase:       $0    (Free tier)
+Telegram:       $0    (бесплатно)
+─────────────────────
+ИТОГО:         ~$1/месяц
+```
+
+### Production (100 пользователей):
+```
+N8N Cloud:      $50   (Pro plan)
+OpenAI API:     $150  (оценочно)
+Supabase:       $25   (Pro plan)
+─────────────────────
+ИТОГО:         ~$225/месяц
+```
+
+---
+
+## 🛠️ Для Разработчиков
+
+### Требуемые Аккаунты:
+- [N8N Cloud](https://n8n.io/) - workflow платформа
+- [OpenAI](https://platform.openai.com/) - AI API
+- [Supabase](https://supabase.com/) - PostgreSQL БД
+- [Telegram](https://core.telegram.org/bots) - бот через @BotFather
+
+### Setup:
+1. Следуйте [setup/SETUP-GUIDE.md](setup/SETUP-GUIDE.md)
+2. Импортируйте N8N workflows из [n8n-workflows/](n8n-workflows/)
+3. Создайте БД через [database/schema.sql](database/schema.sql)
+4. Настройте credentials в N8N
+
+### Development Flow:
+1. Изменения в JSON конфигурациях
+2. Импорт/Update в N8N через UI или API
+3. Тестирование
+4. Commit в git
+
+---
+
+## 📊 Метрики MVP
+
+**Технические:**
+- ✅ 95%+ uptime
+- ✅ <3 сек ответ бота
+- ✅ 0 критических багов
+
+**Продуктовые:**
+- ✅ 80%+ завершают onboarding
+- ✅ 60%+ генерируют 2+ плана
+- ✅ 40%+ активны после 2 недель
+
+---
+
+## 🤝 Контрибуция
+
+Проект находится в активной разработке MVP. После завершения тестирования будет открыт для контрибуций.
+
+---
+
+## 📝 Лицензия
+
+TBD
+
+---
+
+## 👤 Автор
+
+**Nikita Kuznetsov**
+
+**AI Developer:** Claude Code (Anthropic)
+
+---
+
+## 🔗 Полезные Ссылки
+
+- [N8N Documentation](https://docs.n8n.io/)
+- [OpenAI API Docs](https://platform.openai.com/docs/)
+- [Supabase Docs](https://supabase.com/docs)
+- [Telegram Bot API](https://core.telegram.org/bots/api)
+
+---
+
+**Последнее обновление:** 26 января 2026
+**Версия:** 0.1.0-alpha (MVP в разработке)
