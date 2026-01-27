@@ -1,0 +1,551 @@
+{
+  "name": "AI Running Coach - Plan Generator",
+  "meta": {
+    "instanceId": "ai-running-coach-plan-gen"
+  },
+  "nodes": [
+    {
+      "id": "workflow-trigger",
+      "name": "When Called by Main Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [0, 300],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "user_id",
+              "type": "string"
+            },
+            {
+              "name": "user_profile",
+              "type": "string"
+            },
+            {
+              "name": "chat_id",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1.1
+    },
+    {
+      "id": "parse-user-profile",
+      "name": "Parse User Profile",
+      "type": "n8n-nodes-base.set",
+      "position": [220, 300],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user_id",
+              "name": "user_id",
+              "type": "string",
+              "value": "={{ $json.user_id }}"
+            },
+            {
+              "id": "chat_id",
+              "name": "chat_id",
+              "type": "number",
+              "value": "={{ $json.chat_id }}"
+            },
+            {
+              "id": "profile",
+              "name": "profile",
+              "type": "object",
+              "value": "={{ JSON.parse($json.user_profile) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.4
+    },
+    {
+      "id": "get-last-week-plan",
+      "name": "Get Last Week Plan",
+      "type": "n8n-nodes-base.supabase",
+      "position": [440, 300],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "weekly_plans",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "string",
+        "filterString": "user_id=eq.{{ $json.user_id }}&order=week_start.desc"
+      },
+      "typeVersion": 1,
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIALS_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "id": "get-last-week-trainings",
+      "name": "Get Last Week Trainings",
+      "type": "n8n-nodes-base.supabase",
+      "position": [660, 300],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "trainings",
+        "returnAll": true,
+        "filterType": "string",
+        "filterString": "user_id=eq.{{ $('Parse User Profile').item.json.user_id }}&date=gte.{{ $now.minus({days: 7}).format('yyyy-MM-dd') }}"
+      },
+      "typeVersion": 1,
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIALS_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "id": "prepare-plan-context",
+      "name": "Prepare Plan Context",
+      "type": "n8n-nodes-base.set",
+      "position": [880, 300],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user_id",
+              "name": "user_id",
+              "type": "string",
+              "value": "={{ $('Parse User Profile').item.json.user_id }}"
+            },
+            {
+              "id": "chat_id",
+              "name": "chat_id",
+              "type": "number",
+              "value": "={{ $('Parse User Profile').item.json.chat_id }}"
+            },
+            {
+              "id": "profile",
+              "name": "profile",
+              "type": "object",
+              "value": "={{ $('Parse User Profile').item.json.profile }}"
+            },
+            {
+              "id": "last_plan",
+              "name": "last_plan",
+              "type": "object",
+              "value": "={{ $('Get Last Week Plan').item.json || null }}"
+            },
+            {
+              "id": "last_week_trainings",
+              "name": "last_week_trainings",
+              "type": "object",
+              "value": "={{ $('Get Last Week Trainings').all().map(i => i.json) }}"
+            },
+            {
+              "id": "week_start",
+              "name": "week_start",
+              "type": "string",
+              "value": "={{ $now.startOf('week').plus({days: 1}).format('yyyy-MM-dd') }}"
+            },
+            {
+              "id": "week_end",
+              "name": "week_end",
+              "type": "string",
+              "value": "={{ $now.startOf('week').plus({days: 7}).format('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.4
+    },
+    {
+      "id": "calculate-zones",
+      "name": "Calculate Pace Zones",
+      "type": "n8n-nodes-base.code",
+      "position": [1100, 300],
+      "parameters": {
+        "jsCode": "// Calculate pace zones based on 5K pace\nconst profile = $input.item.json.profile;\nconst pace5k = profile.current_5k_pace_seconds || 360; // default 6:00/km\n\n// Pace zones (seconds per km)\n// Based on Jack Daniels' running formula simplified\nconst zones = {\n  zone1: Math.round(pace5k * 1.25), // Recovery - 25% slower\n  zone2: Math.round(pace5k * 1.15), // Easy - 15% slower  \n  zone3: Math.round(pace5k * 1.05), // Tempo - 5% slower\n  zone4: pace5k,                     // Interval - at 5K pace\n  zone5: Math.round(pace5k * 0.95)  // Sprint - 5% faster\n};\n\n// Format pace as MM:SS\nfunction formatPace(seconds) {\n  const mins = Math.floor(seconds / 60);\n  const secs = seconds % 60;\n  return `${mins}:${String(secs).padStart(2, '0')}`;\n}\n\nreturn {\n  json: {\n    ...$input.item.json,\n    zones: zones,\n    zones_formatted: {\n      zone1: formatPace(zones.zone1),\n      zone2: formatPace(zones.zone2),\n      zone3: formatPace(zones.zone3),\n      zone4: formatPace(zones.zone4),\n      zone5: formatPace(zones.zone5)\n    },\n    // Calculate last week summary\n    last_week_summary: {\n      total_km: $input.item.json.last_week_trainings.reduce((sum, t) => sum + (t.distance_km || 0), 0),\n      total_sessions: $input.item.json.last_week_trainings.length,\n      avg_feeling: $input.item.json.last_week_trainings.length > 0 \n        ? $input.item.json.last_week_trainings.filter(t => t.feeling).map(t => t.feeling).join(', ')\n        : 'нет данных'\n    },\n    // Calculate week number in training cycle\n    week_number: $input.item.json.last_plan \n      ? ($input.item.json.last_plan.week_number || 0) + 1 \n      : 1\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "ai-generate-plan",
+      "name": "AI Generate Plan",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1400, 300],
+      "parameters": {
+        "promptType": "define",
+        "text": "Создай недельный план тренировок для пользователя. Верни ТОЛЬКО валидный JSON без комментариев.",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "Ты — эксперт по составлению беговых тренировочных планов.\n\nПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ:\n- Уровень: {{ $json.profile.level || 'intermediate' }}\n- Цель: {{ $json.profile.goal || 'general' }}\n- Текущий темп 5км: {{ $json.zones_formatted.zone4 }}/км\n- Тренировок в неделю: {{ $json.profile.weekly_runs || 3 }}\n- Тип: {{ $json.profile.training_type || 'outdoor' }}\n{{ $json.profile.race_distance ? '- Дистанция забега: ' + $json.profile.race_distance : '' }}\n{{ $json.profile.race_date ? '- Дата забега: ' + $json.profile.race_date : '' }}\n\nЗОНЫ ТЕМПА:\n- Zone 1 (Recovery): {{ $json.zones_formatted.zone1 }}/км\n- Zone 2 (Easy): {{ $json.zones_formatted.zone2 }}/км\n- Zone 3 (Tempo): {{ $json.zones_formatted.zone3 }}/км\n- Zone 4 (Interval): {{ $json.zones_formatted.zone4 }}/км\n- Zone 5 (Sprint): {{ $json.zones_formatted.zone5 }}/км\n\nПРОШЛАЯ НЕДЕЛЯ:\n- Всего км: {{ $json.last_week_summary.total_km }}\n- Тренировок: {{ $json.last_week_summary.total_sessions }}\n- Самочувствие: {{ $json.last_week_summary.avg_feeling }}\n\nТЕКУЩАЯ НЕДЕЛЯ ЦИКЛА: {{ $json.week_number }}\n\nПРАВИЛА:\n1. 80% легких, 20% интенсивных тренировок\n2. Минимум 1 день полного отдыха\n3. Никогда 2 тяжелых дня подряд\n4. Увеличение объема не более 10% от прошлой недели\n5. После 3-4 недель роста — неделя разгрузки\n\nВерни ТОЛЬКО JSON в формате:\n{\n  \"monday\": {\"type\": \"тип\", \"distance_km\": число, \"duration_minutes\": число, \"pace_range\": \"M:SS-M:SS\", \"notes\": \"заметки\", \"completed\": false},\n  \"tuesday\": {...},\n  ...\n  \"sunday\": {...},\n  \"summary\": {\"total_distance_km\": число, \"total_sessions\": число, \"week_focus\": \"описание\"}\n}\n\nТипы: rest, easy_run, long_run, tempo, intervals, recovery, fartlek",
+          "maxIterations": 3
+        }
+      },
+      "typeVersion": 1.7
+    },
+    {
+      "id": "openai-model-plan",
+      "name": "OpenAI Model (Plan)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [1320, 520],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.5,
+          "responseFormat": "json_object"
+        }
+      },
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIALS_ID",
+          "name": "OpenAI"
+        }
+      }
+    },
+    {
+      "id": "parse-plan-json",
+      "name": "Parse Plan JSON",
+      "type": "n8n-nodes-base.code",
+      "position": [1620, 300],
+      "parameters": {
+        "jsCode": "// Parse the AI response to extract JSON\nlet output = $input.item.json.output || $input.item.json.text || '';\n\n// Try to extract JSON from the response\nlet planData;\ntry {\n  // If output is already an object\n  if (typeof output === 'object') {\n    planData = output;\n  } else {\n    // Try to find JSON in the string\n    const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      planData = JSON.parse(jsonMatch[0]);\n    } else {\n      throw new Error('No JSON found in response');\n    }\n  }\n} catch (e) {\n  // Return error response\n  return {\n    json: {\n      error: true,\n      message: 'Failed to parse plan: ' + e.message,\n      raw_output: output\n    }\n  };\n}\n\n// Calculate totals if not provided\nconst days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];\nlet totalDistance = 0;\nlet totalSessions = 0;\n\ndays.forEach(day => {\n  if (planData[day] && planData[day].type !== 'rest') {\n    totalDistance += planData[day].distance_km || 0;\n    totalSessions++;\n  }\n});\n\nif (!planData.summary) {\n  planData.summary = {};\n}\nplanData.summary.total_distance_km = planData.summary.total_distance_km || totalDistance;\nplanData.summary.total_sessions = planData.summary.total_sessions || totalSessions;\n\nreturn {\n  json: {\n    plan_data: planData,\n    total_distance_km: planData.summary.total_distance_km,\n    total_sessions: planData.summary.total_sessions,\n    user_id: $('Calculate Pace Zones').item.json.user_id,\n    chat_id: $('Calculate Pace Zones').item.json.chat_id,\n    week_start: $('Calculate Pace Zones').item.json.week_start,\n    week_end: $('Calculate Pace Zones').item.json.week_end,\n    week_number: $('Calculate Pace Zones').item.json.week_number\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "check-parse-error",
+      "name": "Check Parse Error",
+      "type": "n8n-nodes-base.if",
+      "position": [1840, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "error-check",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.error }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "save-plan",
+      "name": "Save Plan to DB",
+      "type": "n8n-nodes-base.supabase",
+      "position": [2060, 400],
+      "parameters": {
+        "operation": "create",
+        "tableId": "weekly_plans",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "week_start",
+              "fieldValue": "={{ $json.week_start }}"
+            },
+            {
+              "fieldId": "week_end",
+              "fieldValue": "={{ $json.week_end }}"
+            },
+            {
+              "fieldId": "week_number",
+              "fieldValue": "={{ $json.week_number }}"
+            },
+            {
+              "fieldId": "plan_data",
+              "fieldValue": "={{ JSON.stringify($json.plan_data) }}"
+            },
+            {
+              "fieldId": "total_distance_km",
+              "fieldValue": "={{ $json.total_distance_km }}"
+            },
+            {
+              "fieldId": "total_sessions",
+              "fieldValue": "={{ $json.total_sessions }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "active"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUPABASE_CREDENTIALS_ID",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "id": "format-plan-message",
+      "name": "Format Plan Message",
+      "type": "n8n-nodes-base.code",
+      "position": [2280, 400],
+      "parameters": {
+        "jsCode": "const planData = $('Parse Plan JSON').item.json.plan_data;\nconst summary = planData.summary || {};\n\n// Day names in Russian\nconst dayNames = {\n  monday: 'Понедельник',\n  tuesday: 'Вторник',\n  wednesday: 'Среда',\n  thursday: 'Четверг',\n  friday: 'Пятница',\n  saturday: 'Суббота',\n  sunday: 'Воскресенье'\n};\n\n// Training type emojis\nconst typeEmojis = {\n  rest: '😴',\n  easy_run: '🏃',\n  long_run: '🏃‍♂️',\n  tempo: '⚡',\n  intervals: '🔥',\n  recovery: '🌿',\n  fartlek: '🎯'\n};\n\n// Format the plan message\nlet message = `📋 *План на неделю*\\n`;\nmessage += `(${$('Parse Plan JSON').item.json.week_start} — ${$('Parse Plan JSON').item.json.week_end})\\n\\n`;\n\nconst days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];\n\ndays.forEach(day => {\n  const workout = planData[day];\n  if (!workout) return;\n  \n  const emoji = typeEmojis[workout.type] || '📌';\n  const dayName = dayNames[day];\n  \n  if (workout.type === 'rest') {\n    message += `${emoji} *${dayName}*: Отдых\\n`;\n  } else {\n    message += `${emoji} *${dayName}*: `;\n    if (workout.distance_km) message += `${workout.distance_km} км`;\n    if (workout.pace_range) message += ` @ ${workout.pace_range}`;\n    message += `\\n`;\n    if (workout.notes) message += `   _${workout.notes}_\\n`;\n  }\n});\n\nmessage += `\\n📊 *Итого:* ${summary.total_distance_km || 0} км за ${summary.total_sessions || 0} тренировок`;\nif (summary.week_focus) {\n  message += `\\n🎯 *Фокус недели:* ${summary.week_focus}`;\n}\n\nmessage += `\\n\\n✅ План сохранен! Удачных тренировок! 💪`;\n\nreturn {\n  json: {\n    output: message,\n    chat_id: $('Parse Plan JSON').item.json.chat_id\n  }\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "error-message",
+      "name": "Error Message",
+      "type": "n8n-nodes-base.set",
+      "position": [2060, 200],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "output",
+              "name": "output",
+              "type": "string",
+              "value": "Извини, не удалось сгенерировать план. Попробуй еще раз через минуту. 🙏"
+            },
+            {
+              "id": "chat_id",
+              "name": "chat_id",
+              "type": "number",
+              "value": "={{ $('Calculate Pace Zones').item.json.chat_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 3.4
+    },
+    {
+      "id": "merge-output",
+      "name": "Merge Output",
+      "type": "n8n-nodes-base.merge",
+      "position": [2500, 300],
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "typeVersion": 3
+    },
+    {
+      "id": "sticky-note-1",
+      "name": "Sticky Note - Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, 150],
+      "parameters": {
+        "color": 4,
+        "width": 350,
+        "height": 200,
+        "content": "## AI Running Coach - Plan Generator\n\n**Этот sub-workflow:**\n1. Получает профиль пользователя\n2. Загружает прошлые данные\n3. Рассчитывает зоны темпа\n4. Генерирует план через AI\n5. Сохраняет в БД\n6. Форматирует для Telegram"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "sticky-note-2",
+      "name": "Sticky Note - Science",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-200, 400],
+      "parameters": {
+        "color": 7,
+        "width": 350,
+        "height": 200,
+        "content": "## Принципы генерации плана\n\n- 80/20 правило (легкие/интенсивные)\n- Правило 10% (прирост объема)\n- Минимум 1 день отдыха\n- Не 2 тяжелых дня подряд\n- Зоны темпа по Jack Daniels"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "When Called by Main Workflow": {
+      "main": [
+        [
+          {
+            "node": "Parse User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse User Profile": {
+      "main": [
+        [
+          {
+            "node": "Get Last Week Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Week Plan": {
+      "main": [
+        [
+          {
+            "node": "Get Last Week Trainings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Week Trainings": {
+      "main": [
+        [
+          {
+            "node": "Prepare Plan Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Plan Context": {
+      "main": [
+        [
+          {
+            "node": "Calculate Pace Zones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Pace Zones": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model (Plan)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Generate Plan",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Plan": {
+      "main": [
+        [
+          {
+            "node": "Parse Plan JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Plan JSON": {
+      "main": [
+        [
+          {
+            "node": "Check Parse Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Parse Error": {
+      "main": [
+        [
+          {
+            "node": "Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Plan to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Plan to DB": {
+      "main": [
+        [
+          {
+            "node": "Format Plan Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Plan Message": {
+      "main": [
+        [
+          {
+            "node": "Merge Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Message": {
+      "main": [
+        [
+          {
+            "node": "Merge Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI Running Coach"
+    },
+    {
+      "name": "Sub-workflow"
+    }
+  ],
+  "triggerCount": 1,
+  "active": false
+}
