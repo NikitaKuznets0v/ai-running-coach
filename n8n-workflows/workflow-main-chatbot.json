@@ -1,685 +1,61 @@
 {
-  "name": "AI Running Coach - Main Chatbot",
-  "meta": {
-    "instanceId": "ai-running-coach-main"
-  },
+  "name": "Main Chatbot - Ultra Simple",
   "nodes": [
     {
-      "id": "telegram-trigger",
+      "parameters": {
+        "updates": [
+          "message"
+        ]
+      },
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
-      "position": [0, 300],
-      "webhookId": "ai-running-coach-webhook",
-      "parameters": {
-        "updates": ["message"]
-      },
       "typeVersion": 1.2,
-      "credentials": {
-        "telegramApi": {
-          "id": "TELEGRAM_CREDENTIALS_ID",
-          "name": "Telegram Bot"
-        }
-      }
+      "position": [240, 300]
     },
     {
-      "id": "set-user-data",
-      "name": "Extract User Data",
-      "type": "n8n-nodes-base.set",
-      "position": [220, 300],
       "parameters": {
-        "mode": "manual",
-        "duplicateItem": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "telegram_id",
-              "name": "telegram_id",
-              "type": "number",
-              "value": "={{ $json.message.from.id }}"
-            },
-            {
-              "id": "chat_id",
-              "name": "chat_id",
-              "type": "number",
-              "value": "={{ $json.message.chat.id }}"
-            },
-            {
-              "id": "username",
-              "name": "username",
-              "type": "string",
-              "value": "={{ $json.message.from.username || '' }}"
-            },
-            {
-              "id": "first_name",
-              "name": "first_name",
-              "type": "string",
-              "value": "={{ $json.message.from.first_name || '' }}"
-            },
-            {
-              "id": "message_text",
-              "name": "message_text",
-              "type": "string",
-              "value": "={{ $json.message.text || '' }}"
-            },
-            {
-              "id": "message_id",
-              "name": "message_id",
-              "type": "number",
-              "value": "={{ $json.message.message_id }}"
-            }
-          ]
-        },
+        "jsCode": "// Extract message data\nconst msg = $input.item.json.message;\n\nreturn {\n  telegram_id: msg.from.id,\n  chat_id: msg.chat.id,\n  username: msg.from.username || '',\n  first_name: msg.from.first_name || 'Друг',\n  message_text: msg.text || '',\n  message_id: msg.message_id\n};"
+      },
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Ты — AI-тренер по бегу в Telegram. Отвечай кратко и дружелюбно. При вопросах о плане тренировок скажи что нужно сначала пройти онбординг. Используй эмодзи умеренно.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.message_text }}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 300\n}",
         "options": {}
       },
-      "typeVersion": 3.4
+      "name": "Call OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300]
     },
     {
-      "id": "get-user",
-      "name": "Get User from DB",
-      "type": "n8n-nodes-base.supabase",
-      "position": [440, 300],
       "parameters": {
-        "operation": "getAll",
-        "tableId": "users",
-        "returnAll": false,
-        "limit": 1,
-        "filterType": "string",
-        "filterString": "telegram_id=eq.{{ $json.telegram_id }}"
+        "jsCode": "// Extract AI response\nconst response = $input.item.json;\nconst aiMessage = response.choices[0].message.content;\nconst chatId = $('Extract Message').item.json.chat_id;\n\nreturn {\n  chat_id: chatId,\n  response_text: aiMessage\n};"
       },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [840, 300]
     },
     {
-      "id": "check-user-exists",
-      "name": "User Exists?",
-      "type": "n8n-nodes-base.if",
-      "position": [660, 300],
       "parameters": {
-        "conditions": {
-          "options": {
-            "version": 2,
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "id": "user-exists-check",
-              "operator": {
-                "type": "array",
-                "operation": "notEmpty"
-              },
-              "leftValue": "={{ $json }}",
-              "rightValue": ""
-            }
-          ]
-        },
-        "options": {}
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.response_text }}",
+        "additionalFields": {}
       },
-      "typeVersion": 2.2
-    },
-    {
-      "id": "create-new-user",
-      "name": "Create New User",
-      "type": "n8n-nodes-base.supabase",
-      "position": [880, 500],
-      "parameters": {
-        "operation": "create",
-        "tableId": "users",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "telegram_id",
-              "fieldValue": "={{ $('Extract User Data').item.json.telegram_id }}"
-            },
-            {
-              "fieldId": "username",
-              "fieldValue": "={{ $('Extract User Data').item.json.username }}"
-            },
-            {
-              "fieldId": "first_name",
-              "fieldValue": "={{ $('Extract User Data').item.json.first_name }}"
-            },
-            {
-              "fieldId": "onboarding_stage",
-              "fieldValue": "started"
-            },
-            {
-              "fieldId": "language",
-              "fieldValue": "ru"
-            }
-          ]
-        }
-      },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "id": "merge-user-data",
-      "name": "Merge User Data",
-      "type": "n8n-nodes-base.merge",
-      "position": [1100, 300],
-      "parameters": {
-        "mode": "combine",
-        "combineBy": "combineAll",
-        "options": {}
-      },
-      "typeVersion": 3
-    },
-    {
-      "id": "get-current-plan",
-      "name": "Get Current Plan",
-      "type": "n8n-nodes-base.supabase",
-      "position": [1320, 300],
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "weekly_plans",
-        "returnAll": false,
-        "limit": 1,
-        "filterType": "string",
-        "filterString": "user_id=eq.{{ $json.id }}&status=eq.active&week_start=lte.{{ $now.format('yyyy-MM-dd') }}&week_end=gte.{{ $now.format('yyyy-MM-dd') }}"
-      },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "id": "get-recent-trainings",
-      "name": "Get Recent Trainings",
-      "type": "n8n-nodes-base.supabase",
-      "position": [1540, 300],
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "trainings",
-        "returnAll": false,
-        "limit": 5,
-        "filterType": "string",
-        "filterString": "user_id=eq.{{ $('Merge User Data').item.json.id }}&order=date.desc"
-      },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "id": "get-chat-history",
-      "name": "Get Chat History",
-      "type": "n8n-nodes-base.supabase",
-      "position": [1760, 300],
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "chat_history",
-        "returnAll": false,
-        "limit": 20,
-        "filterType": "string",
-        "filterString": "user_id=eq.{{ $('Merge User Data').item.json.id }}&order=created_at.desc"
-      },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "id": "prepare-context",
-      "name": "Prepare AI Context",
-      "type": "n8n-nodes-base.set",
-      "position": [1980, 300],
-      "parameters": {
-        "mode": "manual",
-        "duplicateItem": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "user_profile",
-              "name": "user_profile",
-              "type": "object",
-              "value": "={{ $('Merge User Data').item.json }}"
-            },
-            {
-              "id": "current_plan",
-              "name": "current_plan",
-              "type": "object",
-              "value": "={{ $('Get Current Plan').item.json || null }}"
-            },
-            {
-              "id": "recent_trainings",
-              "name": "recent_trainings",
-              "type": "object",
-              "value": "={{ $('Get Recent Trainings').all().map(i => i.json) }}"
-            },
-            {
-              "id": "chat_history",
-              "name": "chat_history",
-              "type": "object",
-              "value": "={{ $('Get Chat History').all().map(i => i.json).reverse() }}"
-            },
-            {
-              "id": "user_message",
-              "name": "user_message",
-              "type": "string",
-              "value": "={{ $('Extract User Data').item.json.message_text }}"
-            },
-            {
-              "id": "chat_id",
-              "name": "chat_id",
-              "type": "number",
-              "value": "={{ $('Extract User Data').item.json.chat_id }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "typeVersion": 3.4
-    },
-    {
-      "id": "check-onboarding",
-      "name": "Check Onboarding Stage",
-      "type": "n8n-nodes-base.switch",
-      "position": [2200, 300],
-      "parameters": {
-        "rules": {
-          "rules": [
-            {
-              "outputKey": "onboarding",
-              "conditions": {
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "notEquals"
-                    },
-                    "leftValue": "={{ $json.user_profile.onboarding_stage }}",
-                    "rightValue": "completed"
-                  }
-                ]
-              }
-            },
-            {
-              "outputKey": "plan_request",
-              "conditions": {
-                "combinator": "or",
-                "conditions": [
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "план"
-                  },
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "составь"
-                  },
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "/plan"
-                  }
-                ]
-              }
-            },
-            {
-              "outputKey": "training_log",
-              "conditions": {
-                "combinator": "or",
-                "conditions": [
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "пробежал"
-                  },
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "пробежала"
-                  },
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "сделал"
-                  },
-                  {
-                    "operator": {
-                      "type": "string",
-                      "operation": "regex"
-                    },
-                    "leftValue": "={{ $json.user_message.toLowerCase() }}",
-                    "rightValue": "\\d+\\s*(км|km|к)"
-                  }
-                ]
-              }
-            }
-          ],
-          "fallbackOutput": "general"
-        },
-        "options": {}
-      },
-      "typeVersion": 3.2
-    },
-    {
-      "id": "ai-agent-onboarding",
-      "name": "AI Agent - Onboarding",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "position": [2500, 100],
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.user_message }}",
-        "options": {
-          "systemMessage": "Ты — AI-тренер по бегу в Telegram. Твоя задача — познакомиться с новым пользователем и собрать информацию для создания персонализированного плана тренировок.\n\nПользователь: {{ $json.user_profile.first_name || 'Друг' }}\nТекущая стадия онбординга: {{ $json.user_profile.onboarding_stage }}\nСобранные данные: {{ JSON.stringify($json.user_profile.onboarding_data || {}) }}\n\nПредыдущие сообщения:\n{{ $json.chat_history.map(m => m.role + ': ' + m.content).join('\\n') }}\n\nПравила:\n1. Задавай вопросы по очереди, НЕ ВСЕ СРАЗУ\n2. Будь дружелюбным, используй эмодзи умеренно\n3. Общайся на \"ты\"\n4. Подтверждай ответы пользователя\n\nСобери:\n- Уровень (beginner/intermediate/advanced)\n- Текущий темп на 5км\n- Сколько раз в неделю бегает\n- Тип (улица/дорожка)\n- Цель (general/race/improvement)\n- Если забег: дистанция и дата\n\nКогда все данные собраны, поздравь и скажи что можно составить план.",
-          "maxIterations": 5
-        }
-      },
-      "typeVersion": 1.7
-    },
-    {
-      "id": "ai-agent-general",
-      "name": "AI Agent - General Chat",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "position": [2500, 700],
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.user_message }}",
-        "options": {
-          "systemMessage": "Ты — персональный AI-тренер по бегу в Telegram.\n\nПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ:\n- Имя: {{ $json.user_profile.first_name || 'Друг' }}\n- Уровень: {{ $json.user_profile.level || 'не указан' }}\n- Цель: {{ $json.user_profile.goal || 'не указана' }}\n- Темп на 5км: {{ $json.user_profile.current_5k_pace_seconds ? Math.floor($json.user_profile.current_5k_pace_seconds/60) + ':' + String($json.user_profile.current_5k_pace_seconds%60).padStart(2,'0') + '/км' : 'не указан' }}\n- Тренировок в неделю: {{ $json.user_profile.weekly_runs || 'не указано' }}\n\nТЕКУЩИЙ ПЛАН:\n{{ $json.current_plan ? JSON.stringify($json.current_plan.plan_data, null, 2) : 'Нет активного плана' }}\n\nПОСЛЕДНИЕ ТРЕНИРОВКИ:\n{{ $json.recent_trainings.length > 0 ? $json.recent_trainings.map(t => t.date + ': ' + t.distance_km + 'км').join('\\n') : 'Нет записанных тренировок' }}\n\nИСТОРИЯ ДИАЛОГА:\n{{ $json.chat_history.slice(-10).map(m => m.role + ': ' + m.content).join('\\n') }}\n\nПравила:\n- Отвечай кратко, это чат\n- Используй эмодзи умеренно\n- Будь дружелюбным и мотивирующим\n- При вопросах о медицине рекомендуй врача\n- Если спрашивают про план и его нет, предложи создать",
-          "maxIterations": 5
-        }
-      },
-      "typeVersion": 1.7
-    },
-    {
-      "id": "openai-model-onboarding",
-      "name": "OpenAI Model (Onboarding)",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "position": [2420, 320],
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4o-mini",
-          "cachedResultName": "gpt-4o-mini"
-        },
-        "options": {
-          "temperature": 0.7
-        }
-      },
-      "typeVersion": 1.2,
-      "credentials": {
-        "openAiApi": {
-          "id": "OPENAI_CREDENTIALS_ID",
-          "name": "OpenAI"
-        }
-      }
-    },
-    {
-      "id": "openai-model-general",
-      "name": "OpenAI Model (General)",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "position": [2420, 920],
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "list",
-          "value": "gpt-4o-mini",
-          "cachedResultName": "gpt-4o-mini"
-        },
-        "options": {
-          "temperature": 0.7
-        }
-      },
-      "typeVersion": 1.2,
-      "credentials": {
-        "openAiApi": {
-          "id": "OPENAI_CREDENTIALS_ID",
-          "name": "OpenAI"
-        }
-      }
-    },
-    {
-      "id": "execute-plan-workflow",
-      "name": "Generate Plan",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "position": [2500, 300],
-      "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "PLAN_GENERATOR_WORKFLOW_ID"
-        },
-        "options": {},
-        "workflowInputs": {
-          "value": {
-            "user_id": "={{ $json.user_profile.id }}",
-            "user_profile": "={{ JSON.stringify($json.user_profile) }}",
-            "chat_id": "={{ $json.chat_id }}"
-          },
-          "schema": [
-            {
-              "id": "user_id",
-              "type": "string"
-            },
-            {
-              "id": "user_profile",
-              "type": "string"
-            },
-            {
-              "id": "chat_id",
-              "type": "number"
-            }
-          ]
-        }
-      },
-      "typeVersion": 1.2
-    },
-    {
-      "id": "execute-training-workflow",
-      "name": "Log Training",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "position": [2500, 500],
-      "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "TRAINING_LOGGER_WORKFLOW_ID"
-        },
-        "options": {},
-        "workflowInputs": {
-          "value": {
-            "user_id": "={{ $json.user_profile.id }}",
-            "user_message": "={{ $json.user_message }}",
-            "chat_id": "={{ $json.chat_id }}",
-            "current_plan_id": "={{ $json.current_plan?.id || '' }}"
-          },
-          "schema": [
-            {
-              "id": "user_id",
-              "type": "string"
-            },
-            {
-              "id": "user_message",
-              "type": "string"
-            },
-            {
-              "id": "chat_id",
-              "type": "number"
-            },
-            {
-              "id": "current_plan_id",
-              "type": "string"
-            }
-          ]
-        }
-      },
-      "typeVersion": 1.2
-    },
-    {
-      "id": "merge-responses",
-      "name": "Merge AI Responses",
-      "type": "n8n-nodes-base.merge",
-      "position": [2800, 400],
-      "parameters": {
-        "mode": "combine",
-        "combineBy": "combineAll",
-        "options": {}
-      },
-      "typeVersion": 3
-    },
-    {
-      "id": "save-user-message",
-      "name": "Save User Message",
-      "type": "n8n-nodes-base.supabase",
-      "position": [3020, 300],
-      "parameters": {
-        "operation": "create",
-        "tableId": "chat_history",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "user_id",
-              "fieldValue": "={{ $('Prepare AI Context').item.json.user_profile.id }}"
-            },
-            {
-              "fieldId": "role",
-              "fieldValue": "user"
-            },
-            {
-              "fieldId": "content",
-              "fieldValue": "={{ $('Prepare AI Context').item.json.user_message }}"
-            },
-            {
-              "fieldId": "message_type",
-              "fieldValue": "general"
-            }
-          ]
-        }
-      },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "id": "save-ai-response",
-      "name": "Save AI Response",
-      "type": "n8n-nodes-base.supabase",
-      "position": [3240, 300],
-      "parameters": {
-        "operation": "create",
-        "tableId": "chat_history",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "user_id",
-              "fieldValue": "={{ $('Prepare AI Context').item.json.user_profile.id }}"
-            },
-            {
-              "fieldId": "role",
-              "fieldValue": "assistant"
-            },
-            {
-              "fieldId": "content",
-              "fieldValue": "={{ $json.output || $json.text || $json.response }}"
-            },
-            {
-              "fieldId": "message_type",
-              "fieldValue": "general"
-            }
-          ]
-        }
-      },
-      "typeVersion": 1,
-      "credentials": {
-        "supabaseApi": {
-          "id": "SUPABASE_CREDENTIALS_ID",
-          "name": "Supabase"
-        }
-      }
-    },
-    {
-      "id": "send-telegram-response",
-      "name": "Send Telegram Response",
+      "name": "Send to Telegram",
       "type": "n8n-nodes-base.telegram",
-      "position": [3460, 300],
-      "parameters": {
-        "chatId": "={{ $('Prepare AI Context').item.json.chat_id }}",
-        "text": "={{ $('Save AI Response').item.json.content || $json.output || $json.text || 'Произошла ошибка. Попробуйте еще раз.' }}",
-        "additionalFields": {
-          "parse_mode": "Markdown"
-        }
-      },
       "typeVersion": 1.2,
-      "credentials": {
-        "telegramApi": {
-          "id": "TELEGRAM_CREDENTIALS_ID",
-          "name": "Telegram Bot"
-        }
-      }
-    },
-    {
-      "id": "sticky-note-1",
-      "name": "Sticky Note - Info",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [-200, 100],
-      "parameters": {
-        "color": 4,
-        "width": 350,
-        "height": 200,
-        "content": "## AI Running Coach - Main Chatbot\n\n**Этот workflow:**\n1. Получает сообщения из Telegram\n2. Проверяет/создает пользователя\n3. Определяет тип запроса\n4. Направляет к нужному AI агенту\n5. Сохраняет историю\n6. Отправляет ответ"
-      },
-      "typeVersion": 1
-    },
-    {
-      "id": "sticky-note-2",
-      "name": "Sticky Note - Credentials",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [-200, 350],
-      "parameters": {
-        "color": 6,
-        "width": 350,
-        "height": 250,
-        "content": "## Необходимые Credentials\n\n1. **Telegram Bot** - токен от @BotFather\n2. **Supabase** - URL и API key\n3. **OpenAI** - API key\n\n## Sub-workflows\n\nПосле импорта обновите ID:\n- PLAN_GENERATOR_WORKFLOW_ID\n- TRAINING_LOGGER_WORKFLOW_ID"
-      },
-      "typeVersion": 1
+      "position": [1040, 300]
     }
   ],
   "connections": {
@@ -687,244 +63,40 @@
       "main": [
         [
           {
-            "node": "Extract User Data",
+            "node": "Extract Message",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extract User Data": {
+    "Extract Message": {
       "main": [
         [
           {
-            "node": "Get User from DB",
+            "node": "Call OpenAI",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get User from DB": {
+    "Call OpenAI": {
       "main": [
         [
           {
-            "node": "User Exists?",
+            "node": "Extract Response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "User Exists?": {
+    "Extract Response": {
       "main": [
         [
           {
-            "node": "Merge User Data",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Create New User",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Create New User": {
-      "main": [
-        [
-          {
-            "node": "Merge User Data",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge User Data": {
-      "main": [
-        [
-          {
-            "node": "Get Current Plan",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Current Plan": {
-      "main": [
-        [
-          {
-            "node": "Get Recent Trainings",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Recent Trainings": {
-      "main": [
-        [
-          {
-            "node": "Get Chat History",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Chat History": {
-      "main": [
-        [
-          {
-            "node": "Prepare AI Context",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare AI Context": {
-      "main": [
-        [
-          {
-            "node": "Check Onboarding Stage",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Onboarding Stage": {
-      "main": [
-        [
-          {
-            "node": "AI Agent - Onboarding",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Generate Plan",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Log Training",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "AI Agent - General Chat",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Model (Onboarding)": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent - Onboarding",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Model (General)": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent - General Chat",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent - Onboarding": {
-      "main": [
-        [
-          {
-            "node": "Merge AI Responses",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent - General Chat": {
-      "main": [
-        [
-          {
-            "node": "Merge AI Responses",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Plan": {
-      "main": [
-        [
-          {
-            "node": "Merge AI Responses",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Log Training": {
-      "main": [
-        [
-          {
-            "node": "Merge AI Responses",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge AI Responses": {
-      "main": [
-        [
-          {
-            "node": "Save User Message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Save User Message": {
-      "main": [
-        [
-          {
-            "node": "Save AI Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Save AI Response": {
-      "main": [
-        [
-          {
-            "node": "Send Telegram Response",
+            "node": "Send to Telegram",
             "type": "main",
             "index": 0
           }
@@ -932,18 +104,9 @@
       ]
     }
   },
+  "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "staticData": null,
-  "tags": [
-    {
-      "name": "AI Running Coach"
-    },
-    {
-      "name": "Telegram Bot"
-    }
-  ],
-  "triggerCount": 1,
-  "active": false
+  "tags": []
 }
