@@ -1,0 +1,127 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Шаблоны недельных планов по целям",
+    "source": "scientific-foundation.md v2.0"
+  },
+
+  "general": {
+    "name_ru": "Поддержание формы / Здоровье",
+    "focus": "Регулярность, удовольствие от бега, общая физическая форма",
+    "intensity_distribution": {
+      "easy_percent": 90,
+      "moderate_percent": 10,
+      "hard_percent": 0
+    },
+    "weekly_structure": {
+      "beginner": {
+        "days": 3,
+        "template": [
+          {"day": "tuesday", "type": "easy_run", "description": "Лёгкий бег 20-30 мин"},
+          {"day": "thursday", "type": "easy_run", "description": "Лёгкий бег 20-30 мин"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная 40-60 мин в комфортном темпе"}
+        ]
+      },
+      "intermediate": {
+        "days": 4,
+        "template": [
+          {"day": "monday", "type": "easy_run", "description": "Лёгкий бег 30-40 мин"},
+          {"day": "wednesday", "type": "easy_run", "description": "Лёгкий бег 30-40 мин"},
+          {"day": "friday", "type": "fartlek", "description": "Фартлек 35 мин с лёгкими ускорениями"},
+          {"day": "sunday", "type": "long_run", "description": "Длинная 60-75 мин"}
+        ]
+      },
+      "advanced": {
+        "days": 5,
+        "template": [
+          {"day": "monday", "type": "easy_run", "description": "Лёгкий бег 40-50 мин"},
+          {"day": "tuesday", "type": "tempo", "description": "Темповая: разминка + 20 мин темпо + заминка"},
+          {"day": "thursday", "type": "easy_run", "description": "Лёгкий бег 40 мин"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная 75-90 мин"},
+          {"day": "sunday", "type": "recovery", "description": "Восстановительный 30 мин"}
+        ]
+      }
+    }
+  },
+
+  "race": {
+    "name_ru": "Подготовка к забегу",
+    "focus": "Специфичная подготовка к целевой дистанции",
+    "notes": "План зависит от целевой дистанции и времени до забега",
+    "intensity_distribution": {
+      "easy_percent": 80,
+      "moderate_percent": 10,
+      "hard_percent": 10
+    },
+    "weekly_structure": {
+      "beginner": {
+        "days": 3,
+        "template": [
+          {"day": "tuesday", "type": "easy_run", "description": "Лёгкий бег с небольшими ускорениями в конце"},
+          {"day": "thursday", "type": "easy_run", "description": "Лёгкий бег в целевом гоночном темпе (последние 10 мин)"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная — ключевая тренировка недели"}
+        ],
+        "notes": "Для новичков главное — добежать дистанцию, не гнаться за временем"
+      },
+      "intermediate": {
+        "days": 4,
+        "template": [
+          {"day": "tuesday", "type": "tempo", "description": "Темповая на целевом гоночном темпе"},
+          {"day": "thursday", "type": "easy_run", "description": "Лёгкий бег 40 мин"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная с финишем в гоночном темпе"},
+          {"day": "sunday", "type": "recovery", "description": "Восстановительный 25-30 мин"}
+        ]
+      },
+      "advanced": {
+        "days": 5,
+        "template": [
+          {"day": "tuesday", "type": "intervals", "description": "Интервалы на VO2max темпе"},
+          {"day": "wednesday", "type": "recovery", "description": "Восстановительный 30 мин"},
+          {"day": "thursday", "type": "tempo", "description": "Темповая на пороговом темпе"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная с блоками в гоночном темпе"},
+          {"day": "sunday", "type": "easy_run", "description": "Лёгкий бег 40-50 мин"}
+        ]
+      }
+    }
+  },
+
+  "improvement": {
+    "name_ru": "Улучшение результатов",
+    "focus": "Прогресс в скорости и выносливости, личные рекорды",
+    "intensity_distribution": {
+      "easy_percent": 80,
+      "moderate_percent": 10,
+      "hard_percent": 10
+    },
+    "weekly_structure": {
+      "beginner": {
+        "days": 3,
+        "template": [
+          {"day": "tuesday", "type": "easy_run", "description": "Лёгкий бег с 4-6 короткими ускорениями (страйдами)"},
+          {"day": "thursday", "type": "fartlek", "description": "Фартлек: 30 сек быстро / 90 сек легко x 6-8"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная с прогрессией (последние 15 мин быстрее)"}
+        ],
+        "notes": "Для новичков улучшение приходит просто от регулярности"
+      },
+      "intermediate": {
+        "days": 4,
+        "template": [
+          {"day": "tuesday", "type": "tempo", "description": "Темповая: 3x10 мин на пороге с 3 мин отдыха"},
+          {"day": "thursday", "type": "easy_run", "description": "Лёгкий бег 45 мин со страйдами"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная 70-90 мин"},
+          {"day": "sunday", "type": "recovery", "description": "Восстановительный 30 мин"}
+        ]
+      },
+      "advanced": {
+        "days": 5,
+        "template": [
+          {"day": "tuesday", "type": "intervals", "description": "Интервалы: 5x1000м на 5К темпе, отдых 2-3 мин"},
+          {"day": "wednesday", "type": "recovery", "description": "Восстановительный 30-35 мин"},
+          {"day": "thursday", "type": "tempo", "description": "Темповая: 25-30 мин на пороговом темпе"},
+          {"day": "saturday", "type": "long_run", "description": "Длинная 90-120 мин с прогрессией"},
+          {"day": "sunday", "type": "easy_run", "description": "Лёгкий бег 45-50 мин"}
+        ]
+      }
+    }
+  }
+}

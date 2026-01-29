@@ -23,6 +23,7 @@ CREATE TABLE users (
   -- Personal profile
   gender TEXT CHECK (gender IN ('male', 'female')),
   age INTEGER CHECK (age > 0 AND age < 120),
+  height_cm INTEGER CHECK (height_cm > 100 AND height_cm < 250),
   weight_kg DECIMAL(5,2) CHECK (weight_kg > 0 AND weight_kg < 300),
 
   -- Running profile
@@ -50,7 +51,8 @@ CREATE TABLE users (
   -- Onboarding status
   onboarding_stage TEXT DEFAULT 'started' CHECK (onboarding_stage IN (
     'started',      -- Just /start, no data yet
-    'profile',      -- Collecting basic info
+    'profile',      -- Collecting basic info (level)
+    'physical',     -- Collecting physical data (age, height, weight)
     'running_info', -- Collecting running experience
     'goal',         -- Setting goal
     'completed'     -- Ready to use

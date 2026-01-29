@@ -1,0 +1,115 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Железные правила построения тренировочных планов. AI НЕ МОЖЕТ нарушать эти принципы.",
+    "source": "scientific-foundation.md v2.0"
+  },
+
+  "intensity_distribution": {
+    "rule": "80/20",
+    "low_intensity_percent": 80,
+    "high_intensity_percent": 20,
+    "description": "80% тренировок на низкой интенсивности (зоны 1-2), 20% на высокой (зона 5). Минимум времени в 'серой зоне' (зоны 3-4).",
+    "source": "Muñoz et al. 2014, Neal et al. 2013"
+  },
+
+  "weekly_progression": {
+    "max_volume_increase_percent": 10,
+    "description": "Нельзя увеличивать недельный километраж более чем на 10%",
+    "exceptions": "Для пожилых, после травм или новичков — может быть меньше 10%",
+    "source": "ELITETRACK, Mayo Clinic"
+  },
+
+  "recovery_rules": {
+    "min_rest_days_per_week": 1,
+    "hard_easy_principle": true,
+    "description": "Минимум 1 полный день отдыха в неделю. Никогда 2 тяжёлых дня подряд — всегда чередовать.",
+    "deload_week": {
+      "frequency": "каждая 4-я неделя",
+      "volume_reduction_percent": 50,
+      "description": "Разгрузочная неделя с половиной обычной нагрузки"
+    },
+    "source": "Runner's World 2024, Luke Humphrey Running"
+  },
+
+  "workout_sequencing": {
+    "after_hard_workout": ["rest", "easy_run", "recovery"],
+    "after_long_run": ["rest", "easy_run"],
+    "never_consecutive": ["intervals", "tempo", "long_run"],
+    "description": "После тяжёлой тренировки — только отдых или лёгкий бег. Нельзя ставить 2 интенсивных подряд."
+  },
+
+  "intensity_sessions_limits": {
+    "beginner": {
+      "max_per_week": 0,
+      "description": "Новичкам — только лёгкие пробежки и длинные"
+    },
+    "intermediate": {
+      "max_per_week": 1,
+      "description": "Любителям — максимум 1 интенсивная тренировка в неделю"
+    },
+    "advanced": {
+      "max_per_week": 2,
+      "description": "Продвинутым — максимум 2 интенсивных тренировки в неделю"
+    }
+  },
+
+  "long_run_rules": {
+    "max_percent_of_weekly_volume": 30,
+    "description": "Длинная пробежка не должна превышать 30% недельного объёма",
+    "pace": "На 30-90 секунд медленнее целевого гоночного темпа"
+  },
+
+  "recovery_run_rules": {
+    "max_duration_minutes": 40,
+    "pace": "Очень лёгкий, зоны 1-2, RPE 3-4/10",
+    "golden_rule": "Нельзя бежать слишком медленно в восстановительный день, только слишком быстро",
+    "source": "Runners Connect"
+  },
+
+  "bmi_safety_rules": {
+    "description": "Правила безопасности в зависимости от индекса массы тела (BMI)",
+    "calculation": "BMI = weight_kg / (height_m)^2",
+    "thresholds": {
+      "very_high_risk": {
+        "bmi_min": 35,
+        "restrictions": "ТОЛЬКО ходьба и очень лёгкий бег. Никаких интенсивных тренировок",
+        "allowed_types": ["rest", "easy_run"],
+        "max_weekly_km": 15,
+        "max_intensity_per_week": 0,
+        "recommendation": "Сначала снизить вес под наблюдением врача"
+      },
+      "high_risk": {
+        "bmi_min": 30,
+        "bmi_max": 35,
+        "restrictions": "Акцент на лёгкие тренировки, минимум нагрузки на суставы",
+        "allowed_types": ["rest", "easy_run", "long_run"],
+        "max_intensity_per_week": 0,
+        "recommendation": "Избегать бега по асфальту, предпочитать мягкие покрытия"
+      },
+      "moderate_risk": {
+        "bmi_min": 25,
+        "bmi_max": 30,
+        "restrictions": "Осторожно с интервалами, постепенное увеличение нагрузки",
+        "max_intensity_per_week": 1
+      },
+      "normal": {
+        "bmi_max": 25,
+        "restrictions": "Нет особых ограничений"
+      }
+    },
+    "source": "ACSM Guidelines, British Journal of Sports Medicine"
+  },
+
+  "maf_heart_rate": {
+    "description": "Метод MAF (Maximum Aerobic Function) для расчёта аэробной зоны",
+    "formula": "180 - возраст",
+    "adjustments": {
+      "recovering_from_illness": "-10",
+      "inconsistent_training": "-5",
+      "consistent_2_years": "+5"
+    },
+    "usage": "Большинство тренировок должно проходить с пульсом ниже MAF",
+    "source": "Phil Maffetone"
+  }
+}

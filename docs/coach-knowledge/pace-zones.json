@@ -1,0 +1,113 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Расчёт тренировочных темпов на основе текущего темпа на 5К",
+    "source": "scientific-foundation.md v2.0, Running Writings, Jack Daniels"
+  },
+
+  "calculation_base": {
+    "primary_metric": "current_5k_pace_seconds",
+    "description": "Все тренировочные темпы рассчитываются от текущего темпа на 5К",
+    "fallback_if_unknown": {
+      "beginner": 420,
+      "intermediate": 360,
+      "advanced": 300
+    }
+  },
+
+  "pace_zones": {
+    "zone1_recovery": {
+      "name_ru": "Восстановительная",
+      "adjustment_seconds": "+90 to +120",
+      "description": "Очень лёгкий бег, активное восстановление",
+      "hr_percent": [50, 60],
+      "rpe": [2, 3]
+    },
+
+    "zone2_easy": {
+      "name_ru": "Лёгкая/Аэробная",
+      "adjustment_seconds": "+60 to +90",
+      "description": "Комфортный разговорный темп",
+      "hr_percent": [60, 70],
+      "rpe": [3, 5]
+    },
+
+    "zone3_tempo": {
+      "name_ru": "Темповая/Пороговая",
+      "adjustment_seconds": "-5 to +15",
+      "description": "Комфортно-тяжело, короткие фразы",
+      "hr_percent": [80, 88],
+      "rpe": [6, 7]
+    },
+
+    "zone4_threshold": {
+      "name_ru": "Пороговая/VO2max",
+      "adjustment_seconds": "-10 to -5",
+      "description": "Тяжело, на грани",
+      "hr_percent": [88, 92],
+      "rpe": [7, 8]
+    },
+
+    "zone5_intervals": {
+      "name_ru": "Интервальная",
+      "adjustment_seconds": "-20 to -10",
+      "description": "Очень тяжело, максимальное усилие",
+      "hr_percent": [92, 100],
+      "rpe": [9, 10]
+    }
+  },
+
+  "workout_pace_mapping": {
+    "recovery": "zone1_recovery",
+    "easy_run": "zone2_easy",
+    "long_run": "zone2_easy",
+    "tempo": "zone3_tempo",
+    "fartlek_easy": "zone2_easy",
+    "fartlek_fast": "zone3_tempo",
+    "intervals": "zone5_intervals"
+  },
+
+  "pace_formatting": {
+    "format": "M:SS мин/км",
+    "example": "5:30 мин/км",
+    "range_format": "M:SS-M:SS",
+    "range_example": "5:30-6:00"
+  },
+
+  "special_cases": {
+    "no_pace_data": {
+      "strategy": "Использовать RPE и описания ощущений вместо точных темпов",
+      "easy_description": "Можешь свободно разговаривать",
+      "tempo_description": "Можешь говорить только короткими фразами",
+      "hard_description": "Не можешь говорить"
+    },
+
+    "treadmill": {
+      "adjustment": "Добавить 1% наклона для темпов быстрее 4:30 мин/км",
+      "pace_display": "Показывать скорость в км/ч дополнительно"
+    }
+  },
+
+  "distance_specific_adjustments": {
+    "5k_goal": {
+      "long_run_pace": "+45-60 сек",
+      "tempo_pace": "-5 сек",
+      "interval_pace": "-15-20 сек"
+    },
+    "10k_goal": {
+      "long_run_pace": "+60-75 сек",
+      "tempo_pace": "+5-10 сек",
+      "interval_pace": "-10-15 сек"
+    },
+    "half_marathon_goal": {
+      "long_run_pace": "+60-90 сек",
+      "tempo_pace": "+15-20 сек",
+      "interval_pace": "редко используются"
+    },
+    "marathon_goal": {
+      "long_run_pace": "+60-90 сек",
+      "marathon_pace": "+20-30 сек к текущему 5К",
+      "interval_pace": "минимум"
+    }
+  }
+}
