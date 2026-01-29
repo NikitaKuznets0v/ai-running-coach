@@ -49,12 +49,14 @@
     {
       "id": "d4e5f6a7-b8c9-0123-defa-456789012345",
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst messageData = $('Extract Message').item.json;\n\nif (items.length === 0 || !items[0].json || !items[0].json.id) {\n  return [{\n    json: {\n      userExists: false,\n      telegram_id: messageData.telegram_id,\n      chat_id: messageData.chat_id,\n      username: messageData.username,\n      first_name: messageData.first_name,\n      last_name: messageData.last_name,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id\n    }\n  }];\n} else {\n  const userData = items[0].json;\n  return [{\n    json: {\n      userExists: true,\n      user_id: userData.id,\n      telegram_id: userData.telegram_id,\n      onboarding_stage: userData.onboarding_stage,\n      chat_id: messageData.chat_id,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id\n    }\n  }];\n}"
+        "jsCode": "const items = $input.all();\nconst messageData = $('Extract Message').item.json;\n\nif (items.length === 0 || !items[0].json || !items[0].json.id) {\n  return [{\n    json: {\n      userExists: false,\n      telegram_id: messageData.telegram_id,\n      chat_id: messageData.chat_id,\n      username: messageData.username,\n      first_name: messageData.first_name,\n      last_name: messageData.last_name,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id\n    }\n  }];\n} else {\n  const userData = items[0].json;\n  return [{\n    json: {\n      userExists: true,\n      user_id: userData.id,\n      telegram_id: userData.telegram_id,\n      first_name: userData.first_name || messageData.first_name,\n      onboarding_stage: userData.onboarding_stage || 'started',\n      level: userData.level,\n      weekly_runs: userData.weekly_runs,\n      goal: userData.goal,\n      training_type: userData.training_type,\n      current_5k_pace_seconds: userData.current_5k_pace_seconds,\n      onboarding_data: userData.onboarding_data || {},\n      chat_id: messageData.chat_id,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id\n    }\n  }];\n}"
       },
       "name": "Check User",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [840, 400]
+      "position": [840, 400],
+      "notesInFlow": true,
+      "notes": "Added onboarding_data for tracking"
     },
     {
       "id": "e5f6a7b8-c9d0-1234-efab-567890123456",
@@ -152,7 +154,7 @@
     {
       "id": "b8c9d0e1-f2a3-4567-bcde-890123456789",
       "parameters": {
-        "jsCode": "let userData;\nlet messageData;\n\nconst checkUserData = $('Check User').item.json;\n\nif (checkUserData.userExists) {\n  userData = {\n    id: checkUserData.user_id,\n    onboarding_stage: checkUserData.onboarding_stage\n  };\n  messageData = {\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id\n  };\n} else {\n  userData = $input.item.json;\n  messageData = {\n    chat_id: $('Check User').item.json.chat_id,\n    message_text: $('Check User').item.json.message_text,\n    message_id: $('Check User').item.json.message_id\n  };\n}\n\nconst message = messageData.message_text.toLowerCase();\nconst onboardingStage = userData.onboarding_stage || 'started';\n\nlet intent = 'general';\nlet systemPrompt = '';\n\nif (onboardingStage !== 'completed') {\n  intent = 'onboarding';\n  systemPrompt = 'Ты — AI-тренер по бегу. Проводишь онбординг. Собери информацию: уровень (beginner/intermediate/advanced), текущий темп на 5км, сколько раз в неделю бегает, цель. Задавай по ОДНОМУ вопросу. Будь дружелюбным.';\n} else if (message.includes('план') || message.includes('/plan')) {\n  intent = 'plan';\n  systemPrompt = 'Ты — AI-тренер. Скажи что генерация планов пока в разработке, но скоро будет!';\n} else if (message.includes('пробежал') || message.includes('км')) {\n  intent = 'training';\n  systemPrompt = 'Ты — AI-тренер. Дай feedback на тренировку! Скажи что логирование пока в разработке.';\n} else {\n  systemPrompt = 'Ты — персональный AI-тренер по бегу. Отвечай кратко и дружелюбно.';\n}\n\nreturn [{\n  json: {\n    user_id: userData.id,\n    chat_id: messageData.chat_id,\n    message_text: messageData.message_text,\n    message_id: messageData.message_id,\n    intent: intent,\n    system_prompt: systemPrompt\n  }\n}];"
+        "jsCode": "let userData;\nlet messageData;\n\nconst checkUserData = $('Check User').item.json;\n\nif (checkUserData.userExists) {\n  userData = {\n    id: checkUserData.user_id,\n    first_name: checkUserData.first_name,\n    onboarding_stage: checkUserData.onboarding_stage || 'started',\n    level: checkUserData.level,\n    weekly_runs: checkUserData.weekly_runs,\n    goal: checkUserData.goal,\n    training_type: checkUserData.training_type,\n    current_5k_pace_seconds: checkUserData.current_5k_pace_seconds,\n    onboarding_data: checkUserData.onboarding_data || {}\n  };\n  messageData = {\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id\n  };\n} else {\n  userData = $input.item.json;\n  userData.onboarding_stage = 'started';\n  userData.onboarding_data = {};\n  messageData = {\n    chat_id: $('Check User').item.json.chat_id,\n    message_text: $('Check User').item.json.message_text,\n    message_id: $('Check User').item.json.message_id\n  };\n}\n\nconst message = messageData.message_text;\nconst stage = userData.onboarding_stage;\nconst firstName = userData.first_name || 'друг';\nconst onboardingData = userData.onboarding_data || {};\n\nlet intent = 'general';\nlet systemPrompt = '';\nlet extractField = null;\nlet nextStage = stage;\nlet newOnboardingData = { ...onboardingData };\n\nconst JSON_INSTRUCTION = 'ВАЖНО: Ответь ТОЛЬКО валидным JSON без markdown. Формат: {\"extracted\": {...}, \"response\": \"твой ответ\"}';\n\nif (stage !== 'completed') {\n  intent = 'onboarding';\n  \n  switch (stage) {\n    case 'started':\n      systemPrompt = `Ты дружелюбный AI-тренер по бегу. Поприветствуй ${firstName} тепло и расскажи о себе:\n- Ты персональный AI-тренер по бегу\n- Помогаешь составлять планы тренировок\n- Отслеживаешь прогресс и даёшь советы\n- С тобой можно общаться как с живым тренером - писать свободно, голосовыми, присылать скриншоты тренировок\n\nПосле приветствия спроси про уровень бега: новичок (бегаю меньше года), любитель (1-3 года), продвинутый (более 3 лет). ${JSON_INSTRUCTION} extracted должен быть пустым объектом {}.`;\n      nextStage = 'profile';\n      break;\n      \n    case 'profile':\n      systemPrompt = `Ты AI-тренер. Пользователь отвечает на вопрос об уровне бега. Проанализируй его ответ и определи уровень: beginner (новичок, начинающий, меньше года), intermediate (любитель, средний, 1-3 года), advanced (продвинутый, опытный, более 3 лет). Если не можешь определить - переспроси. Затем спроси про темп на 5 км (например 6 мин/км или общее время). Если не знает темп - это нормально. ${JSON_INSTRUCTION} extracted: {\"level\": \"beginner\"|\"intermediate\"|\"advanced\"|null}`;\n      extractField = 'level';\n      nextStage = 'running_info';\n      break;\n      \n    case 'running_info':\n      systemPrompt = `Ты AI-тренер. Пользователь отвечает про темп бега. Проанализируй: если говорит время на 5км (например 30 минут) - раздели на 5 чтобы получить темп на км в секундах. Если говорит темп (6 мин/км) - переведи в секунды (360). Если не знает - верни null. Затем спроси сколько раз в неделю бегает или планирует (от 1 до 7). ${JSON_INSTRUCTION} extracted: {\"pace_seconds\": число|null}`;\n      extractField = 'pace';\n      nextStage = 'goal';\n      newOnboardingData.step = 'frequency';\n      break;\n      \n    case 'goal':\n      const currentStep = onboardingData.step || 'frequency';\n      \n      if (currentStep === 'frequency') {\n        systemPrompt = `Ты AI-тренер. Пользователь отвечает сколько раз в неделю бегает. Извлеки число (1-7). Если не понятно - предположи 3. Затем спроси про цель: для здоровья и удовольствия, подготовка к забегу, или улучшить результаты. ${JSON_INSTRUCTION} extracted: {\"weekly_runs\": число}`;\n        extractField = 'frequency';\n        nextStage = 'goal';\n        newOnboardingData.step = 'goal_select';\n      } else {\n        systemPrompt = `Ты AI-тренер. Пользователь отвечает про цель бега. Определи: general (здоровье, форма, удовольствие, поддержание), race (забег, соревнование, марафон, полумарафон), improvement (улучшить, быстрее, результаты, прогресс). Поздравь с завершением профиля и скажи что уже составляешь персональный план тренировок на неделю - скоро пришлёшь! ${JSON_INSTRUCTION} extracted: {\"goal\": \"general\"|\"race\"|\"improvement\"}`;\n        extractField = 'goal';\n        nextStage = 'completed';\n        newOnboardingData.step = 'completed';\n      }\n      break;\n  }\n} else {\n  const msgLower = message.toLowerCase();\n  if (msgLower.includes('план') || msgLower.includes('/plan')) {\n    intent = 'plan';\n    systemPrompt = `Пользователь хочет план тренировок. Скажи что функция скоро будет. ${JSON_INSTRUCTION} extracted: {}`;\n  } else if (msgLower.includes('улиц') || msgLower.includes('на улице') || msgLower.includes('парк')) {\n    intent = 'change_type';\n    systemPrompt = `Пользователь хочет бегать на улице. Подтверди смену формата. ${JSON_INSTRUCTION} extracted: {\"training_type\": \"outdoor\"}`;\n  } else if (msgLower.includes('зал') || msgLower.includes('дорожк') || msgLower.includes('тренажер')) {\n    intent = 'change_type';\n    systemPrompt = `Пользователь хочет в зал. Подтверди смену формата. ${JSON_INSTRUCTION} extracted: {\"training_type\": \"treadmill\"}`;\n  } else {\n    systemPrompt = `Ты AI-тренер по бегу для ${firstName}. Уровень: ${userData.level}, цель: ${userData.goal}. Отвечай кратко и дружелюбно. ${JSON_INSTRUCTION} extracted: {}`;\n  }\n}\n\nreturn [{\n  json: {\n    user_id: userData.id,\n    chat_id: messageData.chat_id,\n    message_text: message,\n    message_id: messageData.message_id,\n    intent: intent,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    extract_field: extractField,\n    new_onboarding_data: newOnboardingData\n  }\n}];"
       },
       "name": "Prepare Data",
       "type": "n8n-nodes-base.code",
@@ -168,7 +170,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"{{ $json.system_prompt }}\"},\n    {\"role\": \"user\", \"content\": \"{{ $json.message_text }}\"}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 400\n}",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"{{ $json.system_prompt.replace(/\\\"/g, '\\\\\"').replace(/\\n/g, '\\\\n') }}\"},\n    {\"role\": \"user\", \"content\": \"{{ $json.message_text.replace(/\\\"/g, '\\\\\"').replace(/\\n/g, '\\\\n') }}\"}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
         "options": {}
       },
       "name": "Call OpenAI",
@@ -179,7 +181,7 @@
     {
       "id": "d0e1f2a3-b4c5-6789-defa-012345678901",
       "parameters": {
-        "jsCode": "const response = $input.item.json;\nconst userData = $('Prepare Data').item.json;\nconst aiMessage = response.choices[0].message.content;\n\nreturn [{\n  json: {\n    user_id: userData.user_id,\n    chat_id: userData.chat_id,\n    message_id: userData.message_id,\n    user_message: userData.message_text,\n    intent: userData.intent,\n    response_text: aiMessage\n  }\n}];"
+        "jsCode": "const response = $input.item.json;\nconst prepareData = $('Prepare Data').item.json;\nconst aiContent = response.choices[0].message.content;\n\n// Parse JSON response from AI\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {\n  // If JSON parsing fails, use raw content as response\n  responseText = aiContent;\n}\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    message_id: prepareData.message_id,\n    user_message: prepareData.message_text,\n    intent: prepareData.intent,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    new_onboarding_data: prepareData.new_onboarding_data\n  }\n}];"
       },
       "name": "Extract Response",
       "type": "n8n-nodes-base.code",
@@ -258,7 +260,7 @@
       "id": "a3b4c5d6-e7f8-9012-abcd-345678901234",
       "parameters": {
         "operation": "sendMessage",
-        "chatId": "{{ $json.chat_id }}",
+        "chatId": "={{ $json.chat_id.toString() }}",
         "text": "={{ $json.response_text }}",
         "additionalFields": {}
       },
@@ -266,6 +268,129 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [2240, 500]
+    },
+    {
+      "id": "b4c5d6e7-f8a9-0123-bcde-456789012345",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-onboarding",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "onboarding",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is Onboarding?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2240, 700]
+    },
+    {
+      "id": "c5d6e7f8-a9b0-1234-cdef-567890123456",
+      "parameters": {
+        "jsCode": "const data = $input.item.json;\nconst extractedData = data.extracted_data || {};\n\n// Build update fields from AI-extracted data\nconst updateFields = {};\n\n// Always update stage if it changed\nif (data.next_stage && data.next_stage !== data.onboarding_stage) {\n  updateFields.onboarding_stage = data.next_stage;\n}\n\n// Add extracted data from AI response\nif (extractedData.level) updateFields.level = extractedData.level;\nif (extractedData.pace_seconds) updateFields.current_5k_pace_seconds = extractedData.pace_seconds;\nif (extractedData.weekly_runs) updateFields.weekly_runs = extractedData.weekly_runs;\nif (extractedData.goal) updateFields.goal = extractedData.goal;\nif (extractedData.training_type) updateFields.training_type = extractedData.training_type;\n\n// Always update onboarding_data to preserve step tracking\nif (data.new_onboarding_data) {\n  updateFields.onboarding_data = data.new_onboarding_data;\n}\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0\n  }\n}];"
+      },
+      "name": "Build Update Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 700]
+    },
+    {
+      "id": "d6e7f8a9-b0c1-2345-defa-678901234567",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-has-updates",
+              "leftValue": "={{ $json.has_updates }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Updates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2640, 700]
+    },
+    {
+      "id": "e7f8a9b0-c1d2-3456-efab-789012345678",
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "onboarding_stage",
+              "fieldValue": "={{ $json.update_fields.onboarding_stage }}"
+            },
+            {
+              "fieldId": "level",
+              "fieldValue": "={{ $json.update_fields.level }}"
+            },
+            {
+              "fieldId": "current_5k_pace_seconds",
+              "fieldValue": "={{ $json.update_fields.current_5k_pace_seconds }}"
+            },
+            {
+              "fieldId": "weekly_runs",
+              "fieldValue": "={{ $json.update_fields.weekly_runs }}"
+            },
+            {
+              "fieldId": "goal",
+              "fieldValue": "={{ $json.update_fields.goal }}"
+            },
+            {
+              "fieldId": "training_type",
+              "fieldValue": "={{ $json.update_fields.training_type }}"
+            },
+            {
+              "fieldId": "onboarding_data",
+              "fieldValue": "={{ $json.update_fields.onboarding_data }}"
+            }
+          ]
+        }
+      },
+      "name": "Update User Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2840, 650]
     }
   ],
   "connections": {
@@ -302,11 +427,27 @@
     "Extract Response": {
       "main": [[
         {"node": "Save User Msg", "type": "main", "index": 0},
-        {"node": "Send to Telegram", "type": "main", "index": 0}
+        {"node": "Send to Telegram", "type": "main", "index": 0},
+        {"node": "Is Onboarding?", "type": "main", "index": 0}
       ]]
     },
     "Save User Msg": {
       "main": [[{"node": "Save AI Msg", "type": "main", "index": 0}]]
+    },
+    "Is Onboarding?": {
+      "main": [
+        [{"node": "Build Update Data", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Build Update Data": {
+      "main": [[{"node": "Has Updates?", "type": "main", "index": 0}]]
+    },
+    "Has Updates?": {
+      "main": [
+        [{"node": "Update User Profile", "type": "main", "index": 0}],
+        []
+      ]
     }
   },
   "active": false,
