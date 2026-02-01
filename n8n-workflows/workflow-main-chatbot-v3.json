@@ -1,0 +1,904 @@
+{
+  "name": "AI Running Coach - Main Chatbot v3",
+  "nodes": [
+    {
+      "id": "telegram-trigger",
+      "parameters": {
+        "updates": [
+          "message"
+        ]
+      },
+      "name": "TelegramTrigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "extract-message",
+      "parameters": {
+        "functionCode": "const msg = items[0].json.message;\n\nreturn [{\n  json: {\n    telegram_id: msg.from.id,\n    chat_id: msg.chat.id,\n    username: msg.from.username || '',\n    first_name: msg.from.first_name || 'Друг',\n    last_name: msg.from.last_name || '',\n    message_text: msg.text || '',\n    message_id: msg.message_id\n  }\n}];"
+      },
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "id": "get-user",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Get User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        640,
+        400
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "check-user",
+      "parameters": {
+        "functionCode": "const messageData = $('Extract Message').first().json;\n\nif (items.length === 0 || !items[0].json || !items[0].json.id) {\n  return [{\n    json: {\n      userExists: false,\n      telegram_id: messageData.telegram_id,\n      chat_id: messageData.chat_id,\n      username: messageData.username,\n      first_name: messageData.first_name,\n      last_name: messageData.last_name,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id\n    }\n  }];\n} else {\n  const userData = items[0].json;\n  return [{\n    json: {\n      userExists: true,\n      user_id: userData.id,\n      telegram_id: userData.telegram_id,\n      first_name: userData.first_name || messageData.first_name,\n      onboarding_stage: userData.onboarding_stage || 'started',\n      level: userData.level,\n      age: userData.age,\n      height_cm: userData.height_cm,\n      weight_kg: userData.weight_kg,\n      weekly_runs: userData.weekly_runs,\n      goal: userData.goal,\n      current_5k_pace_seconds: userData.current_5k_pace_seconds,\n      race_date: userData.race_date,\n      race_distance: userData.race_distance,\n      target_time_seconds: userData.target_time_seconds,\n      chat_id: messageData.chat_id,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id\n    }\n  }];\n}"
+      },
+      "name": "Check User",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        840,
+        400
+      ]
+    },
+    {
+      "id": "user-not-found",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.userExists }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "User Not Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        400
+      ]
+    },
+    {
+      "id": "get-active-plan",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "weekly_plans",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Check User').first().json.user_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "options": {
+          "orderByColumn": "created_at",
+          "orderType": "desc"
+        }
+      },
+      "name": "Get Active Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        500
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "merge-user-plan",
+      "parameters": {
+        "functionCode": "const checkUserData = $('Check User').first().json;\nconst planItems = $('Get Active Plan').all();\n\nlet activePlan = null;\nif (planItems.length > 0 && planItems[0].json && planItems[0].json.id) {\n  activePlan = planItems[0].json;\n}\n\nreturn [{\n  json: {\n    ...checkUserData,\n    active_plan: activePlan\n  }\n}];"
+      },
+      "name": "Merge User & Plan",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        500
+      ]
+    },
+    {
+      "id": "create-user",
+      "parameters": {
+        "operation": "create",
+        "tableId": "users",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telegram_id",
+              "fieldValue": "={{ $json.telegram_id }}"
+            },
+            {
+              "fieldId": "username",
+              "fieldValue": "={{ $json.username }}"
+            },
+            {
+              "fieldId": "first_name",
+              "fieldValue": "={{ $json.first_name }}"
+            },
+            {
+              "fieldId": "last_name",
+              "fieldValue": "={{ $json.last_name }}"
+            },
+            {
+              "fieldId": "onboarding_stage",
+              "fieldValue": "started"
+            },
+            {
+              "fieldId": "language",
+              "fieldValue": "ru"
+            }
+          ]
+        }
+      },
+      "name": "Create User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "get-user-again",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Check User').first().json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Get User Again",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "prepare-data",
+      "parameters": {
+        "functionCode": "// Получаем данные пользователя (из Check User или Merge User & Plan)\nlet checkUserData;\ntry {\n  checkUserData = $('Merge User & Plan').first().json;\n} catch (e) {\n  checkUserData = $('Check User').first().json;\n}\n\nlet userData, messageData, activePlan;\n\nif (checkUserData.userExists) {\n  userData = {\n    id: checkUserData.user_id,\n    first_name: checkUserData.first_name,\n    onboarding_stage: checkUserData.onboarding_stage || 'started',\n    level: checkUserData.level,\n    weekly_runs: checkUserData.weekly_runs,\n    goal: checkUserData.goal,\n    age: checkUserData.age,\n    height_cm: checkUserData.height_cm,\n    weight_kg: checkUserData.weight_kg,\n    current_5k_pace_seconds: checkUserData.current_5k_pace_seconds,\n    race_date: checkUserData.race_date,\n    race_distance: checkUserData.race_distance,\n    target_time_seconds: checkUserData.target_time_seconds\n  };\n  messageData = {\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id\n  };\n  activePlan = checkUserData.active_plan || null;\n} else {\n  userData = items[0].json;\n  userData.onboarding_stage = 'started';\n  messageData = {\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id\n  };\n  activePlan = null;\n}\n\nconst message = messageData.message_text;\nconst stage = userData.onboarding_stage;\nconst firstName = userData.first_name || 'друг';\n\nlet intent = 'general';\nlet systemPrompt = '';\nlet nextStage = stage;\nlet isPlanGeneration = false;\n\nconst JSON_FORMAT = `ФОРМАТ ОТВЕТА — СТРОГО JSON:\n{\n  \"extracted\": {...},\n  \"response\": \"текст ответа\"\n}\n\nВАЖНО: поле \"response\" должно содержать ЧИТАЕМЫЙ ТЕКСТ для пользователя.\nНЕ используй символы * _ \\` [ ] — они ломают Telegram.\nИспользуй • для списков, обычные скобки () для пояснений.`;\n\nif (stage !== 'completed') {\n  intent = 'onboarding';\n\n  switch (stage) {\n    case 'started':\n      systemPrompt = `Ты AI-тренер по бегу. Пользователь ${firstName} только что запустил бота.\n\nЗАДАЧА — написать приветственное сообщение:\n1. Поприветствуй по имени\n2. Представься как AI-тренер по бегу\n3. Кратко опиши что умеет бот:\n   • Составляет персональные планы тренировок\n   • Учитывает уровень подготовки и цели\n   • Помогает прогрессировать безопасно\n4. Задай первый вопрос: какой уровень бега — новичок (бегает меньше года), любитель (1-3 года) или продвинутый (более 3 лет)?\n\n${JSON_FORMAT}\nextracted: {}`;\n      nextStage = 'profile';\n      break;\n\n    case 'profile':\n      systemPrompt = `AI-тренер. ${firstName} ответил про уровень бега. НЕ здоровайся — диалог уже идёт.\n\nЗАДАЧА:\n1. Определи уровень: beginner (новичок), intermediate (любитель), advanced (продвинутый)\n2. Коротко подтверди выбор\n3. Спроси возраст — нужен для расчёта пульсовых зон\n\n${JSON_FORMAT}\nextracted: {\"level\": \"beginner\"|\"intermediate\"|\"advanced\"}`;\n      nextStage = 'physical';\n      break;\n\n    case 'physical':\n      systemPrompt = `AI-тренер. ${firstName} указал возраст. НЕ здоровайся.\n\nЗАДАЧА:\n1. Извлеки возраст\n2. Спроси рост (см) и вес (кг) — нужно для безопасного планирования нагрузок\n\n${JSON_FORMAT}\nextracted: {\"age\": число}`;\n      nextStage = 'running_info';\n      break;\n\n    case 'running_info':\n      systemPrompt = `AI-тренер. ${firstName} указал рост и вес. НЕ здоровайся.\n\nЗАДАЧА:\n1. Извлеки рост (см) и вес (кг)\n2. Спроси текущий темп на 5 км (например \"6:00 на км\" или \"пробегаю 5км за 30 минут\"). Если не знает — пусть напишет примерно или \"не знаю\"\n\n${JSON_FORMAT}\nextracted: {\"height_cm\": число, \"weight_kg\": число}`;\n      nextStage = 'goal';\n      break;\n\n    case 'goal':\n      systemPrompt = `AI-тренер. ${firstName} указал темп (или не знает). НЕ здоровайся.\n\nЗАДАЧА:\n1. Извлеки темп в секундах/км: \"6:00\"=360, \"5:30\"=330, \"30 мин на 5км\"=360. Если не указал — null\n2. Задай последние вопросы:\n   • Сколько дней в неделю готов тренироваться? (2-6)\n   • Какая цель: просто бегать для здоровья, подготовиться к забегу, или улучшить результаты?\n\n${JSON_FORMAT}\nextracted: {\"current_5k_pace_seconds\": число|null}`;\n      nextStage = 'goal_type';\n      break;\n\n    case 'goal_type':\n      // Пользователь отвечает про цель — может дать сразу много информации!\n      systemPrompt = `AI-тренер. ${firstName} ответил про цель и количество тренировок. НЕ здоровайся.\n\nСООБЩЕНИЕ ПОЛЬЗОВАТЕЛЯ: \"${message}\"\n\nЗАДАЧА — извлечь ВСЮ информацию из сообщения:\n\n1. weekly_runs: сколько дней в неделю (2-6). Ищи слова \"раз\", \"дней\", \"тренировок\"\n2. goal: определи цель:\n   • \"general\" — просто бегать, для здоровья, для удовольствия\n   • \"race\" — к забегу, к соревнованию, к марафону и т.д.\n   • \"improvement\" — улучшить результаты, стать быстрее\n\n3. ЕСЛИ goal=\"race\", также извлеки (если указано в сообщении):\n   • race_distance: дистанция забега. Варианты:\n     - \"5k\" (5 км)\n     - \"10k\" (10 км)\n     - \"half\" (полумарафон, 21 км)\n     - \"marathon\" (марафон, 42 км)\n     - \"ultra\" (любая дистанция больше марафона: 30км, 50км, 100км и т.д.)\n   • race_date: когда забег в формате YYYY-MM-DD\n     - \"в сентябре\" → \"2026-09-15\"\n     - \"через 3 месяца\" → посчитай от сегодня (февраль 2026)\n     - \"в начале октября\" → \"2026-10-05\"\n   • target_time_seconds: целевое время (если указано)\n\n4. В ответе:\n   ЕСЛИ пользователь дал ВСЮ информацию для своей цели:\n   • Для race: есть дистанция И примерная дата → поздравь и скажи что профиль готов\n   • Для general: сразу поздравь и предложи составить план\n   • Для improvement: спроси какого результата хочет достичь\n\n   ЕСЛИ чего-то не хватает — спроси ТОЛЬКО недостающее:\n   • Нет дистанции → \"К какому забегу готовишься?\"\n   • Нет даты → \"Когда примерно забег? Хотя бы месяц\"\n   • НЕ переспрашивай то, что уже сказано!\n\n${JSON_FORMAT}\nextracted: {\n  \"weekly_runs\": число,\n  \"goal\": \"general\"|\"race\"|\"improvement\",\n  \"race_distance\": \"5k\"|\"10k\"|\"half\"|\"marathon\"|\"ultra\"|null,\n  \"race_date\": \"YYYY-MM-DD\"|null,\n  \"target_time_seconds\": число|null\n}`;\n      nextStage = 'goal_details';\n      break;\n\n    case 'race_details':\n      systemPrompt = `AI-тренер. ${firstName} уточняет детали забега. НЕ здоровайся.\n\nСООБЩЕНИЕ: \"${message}\"\n\nУЖЕ ИЗВЕСТНО:\n• Дистанция: ${userData.race_distance || 'не указана'}\n• Дата: ${userData.race_date || 'не указана'}\n• Целевое время: ${userData.target_time_seconds ? Math.floor(userData.target_time_seconds/60) + ' мин' : 'не указано'}\n\nЗАДАЧА:\n1. Извлеки из сообщения недостающие данные:\n   • race_distance: \"5k\", \"10k\", \"half\", \"marathon\", \"ultra\"\n   • race_date: формат YYYY-MM-DD\n   • target_time_seconds: целевое время в секундах\n\n2. ОЦЕНИ РЕАЛИСТИЧНОСТЬ (если есть целевое время):\n   Текущий темп: ${userData.current_5k_pace_seconds ? Math.floor(userData.current_5k_pace_seconds/60) + ':' + (userData.current_5k_pace_seconds%60).toString().padStart(2,'0') + '/км' : 'неизвестен'}\n\n   • Если цель реальна — подтверди и мотивируй\n   • Если амбициозно — предупреди, но поддержи\n   • Если нереально — честно скажи и предложи альтернативу\n\n3. Когда все данные собраны → скажи что профиль готов и предложи составить план\n\n${JSON_FORMAT}\nextracted: {\"race_distance\": \"...\"|null, \"race_date\": \"YYYY-MM-DD\"|null, \"target_time_seconds\": число|null}`;\n      nextStage = 'completed';\n      break;\n\n    case 'improvement_details':\n      systemPrompt = `AI-тренер. ${firstName} хочет улучшить результаты. НЕ здоровайся.\n\nСООБЩЕНИЕ: \"${message}\"\n\nЗАДАЧА:\n1. Извлеки:\n   • target_time_seconds: целевой результат в секундах\n   • target_date: желаемый срок (YYYY-MM-DD) или null\n\n2. ОЦЕНИ РЕАЛИСТИЧНОСТЬ:\n   Текущий темп: ${userData.current_5k_pace_seconds ? Math.floor(userData.current_5k_pace_seconds/60) + ':' + (userData.current_5k_pace_seconds%60).toString().padStart(2,'0') + '/км' : 'неизвестен'}\n\n   • Если срок не указан — предложи реалистичный (комфортный и интенсивный варианты)\n   • Будь честен про достижимость\n\n3. Скажи что профиль готов и предложи составить план\n\n${JSON_FORMAT}\nextracted: {\"target_time_seconds\": число|null, \"target_date\": \"YYYY-MM-DD\"|null}`;\n      nextStage = 'completed';\n      break;\n  }\n} else {\n  // Онбординг завершён — полноценный режим тренера\n\n  if (!userData.weekly_runs || !userData.goal) {\n    intent = 'onboarding';\n    systemPrompt = `AI-тренер. ${firstName} ответил на вопросы. НЕ здоровайся.\n\nЗАДАЧА: Извлеки weekly_runs и goal, поздравь с завершением профиля.\n\n${JSON_FORMAT}\nextracted: {\"weekly_runs\": число, \"goal\": \"general\"|\"race\"|\"improvement\"}`;\n  } else {\n    // Полноценный режим тренера\n    const levelRu = userData.level === 'beginner' ? 'новичок' :\n                    userData.level === 'intermediate' ? 'любитель' : 'продвинутый';\n\n    const goalRu = userData.goal === 'general' ? 'бег для здоровья' :\n                   userData.goal === 'race' ? 'подготовка к забегу' : 'улучшение результатов';\n\n    const heightM = userData.height_cm / 100;\n    const bmi = userData.weight_kg / (heightM * heightM);\n    const bmiInfo = bmi >= 30 ? '\\nBMI высокий — акцент на безопасные нагрузки' : '';\n\n    const mafHR = 180 - userData.age;\n\n    let paceStr = 'не указан';\n    if (userData.current_5k_pace_seconds) {\n      const paceMin = Math.floor(userData.current_5k_pace_seconds / 60);\n      const paceSec = userData.current_5k_pace_seconds % 60;\n      paceStr = `${paceMin}:${paceSec.toString().padStart(2, '0')}/км`;\n    }\n\n    let raceInfo = '';\n    if (userData.goal === 'race' && userData.race_date) {\n      const distanceRu = {\n        '5k': '5 км', '10k': '10 км', 'half': 'полумарафон',\n        'marathon': 'марафон', 'ultra': 'ультра'\n      }[userData.race_distance] || userData.race_distance;\n      raceInfo = `\\nЦЕЛЬ: ${distanceRu}, ${userData.race_date}`;\n    }\n\n    const wantsPlan = /план|состав|давай|начн|готов|хочу|тренировк/i.test(message);\n\n    if (wantsPlan) {\n      isPlanGeneration = true;\n\n      const easyPace = userData.current_5k_pace_seconds ? userData.current_5k_pace_seconds + 50 : 420;\n      const tempoPace = userData.current_5k_pace_seconds ? userData.current_5k_pace_seconds + 10 : 360;\n      const longPace = easyPace + 15;\n      const formatPace = (sec) => `${Math.floor(sec/60)}:${(sec%60).toString().padStart(2,'0')}`;\n\n      systemPrompt = `Ты AI-тренер для ${firstName}. НЕ здоровайся.\n\nПРОФИЛЬ:\n• Уровень: ${levelRu}\n• Возраст: ${userData.age} лет\n• Темп 5км: ${paceStr}\n• Тренировок/нед: ${userData.weekly_runs}\n• Цель: ${goalRu}\n• MAF пульс: ${mafHR}${bmiInfo}${raceInfo}\n\nЗАДАЧА: Составь план на неделю (${userData.weekly_runs} тренировок)\n\nТЕМПЫ:\n• Лёгкий: ${formatPace(easyPace)}/км\n• Темповый: ${formatPace(tempoPace)}/км\n• Длинный: ${formatPace(longPace)}/км\n\nФОРМАТ ОТВЕТА:\nДень — Тип тренировки\n   Дистанция | Темп\n   Комментарий\n\nИтого за неделю: X км\n\n${JSON_FORMAT}\nextracted: {\"plan_generated\": true, \"total_km\": число, \"total_sessions\": ${userData.weekly_runs}}`;\n\n    } else {\n      // Подготовка информации о плане\n      let planContext = '';\n      if (activePlan && activePlan.plan_data) {\n        const planData = typeof activePlan.plan_data === 'string' ? JSON.parse(activePlan.plan_data) : activePlan.plan_data;\n        planContext = `\\n\\nАКТИВНЫЙ ПЛАН ТРЕНИРОВОК (${activePlan.week_start} - ${activePlan.week_end}):\\n${planData.raw_plan || JSON.stringify(planData)}`;\n      }\n\n      // Конвертация темпа в скорость для беговой дорожки\n      let paceToSpeedInfo = '';\n      if (userData.current_5k_pace_seconds) {\n        const paceMin = Math.floor(userData.current_5k_pace_seconds / 60);\n        const paceSec = userData.current_5k_pace_seconds % 60;\n        const paceDecimal = paceMin + paceSec / 60;\n        const speed = 60 / paceDecimal;\n        paceToSpeedInfo = `\\n\\nКОНВЕРТАЦИЯ ДЛЯ ДОРОЖКИ:\\n• Текущий темп ${paceMin}:${paceSec.toString().padStart(2,'0')}/км = ${speed.toFixed(1)} км/ч на дорожке\\n• Формула: скорость (км/ч) = 60 / темп (в минутах)`;\n      }\n\n      systemPrompt = `Ты AI-тренер для ${firstName}. НЕ здоровайся.\n\nПРОФИЛЬ: ${levelRu}, ${userData.age} лет, ${userData.weekly_runs} трен/нед, цель: ${goalRu}${raceInfo}${planContext}${paceToSpeedInfo}\n\nСООБЩЕНИЕ: \"${message}\"\n\nВАЖНО:\n• Отвечай в контексте АКТИВНОГО ПЛАНА тренировок пользователя\n• Если вопрос про темп/скорость — ВСЕГДА переводи в скорость для беговой дорожки (км/ч)\n• Пример: темп 5:10/км = 60/(5+10/60) = 11.6 км/ч на дорожке\n• Если в плане указан темп — сразу дай и скорость для дорожки\n\nОтветь как опытный тренер. Будь дружелюбным и конкретным.\n\n${JSON_FORMAT}\nextracted: {}`;\n    }\n  }\n}\n\nreturn [{\n  json: {\n    user_id: userData.id,\n    chat_id: messageData.chat_id,\n    message_text: message,\n    message_id: messageData.message_id,\n    intent: intent,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    is_plan_generation: isPlanGeneration,\n    weekly_runs: userData.weekly_runs\n  }\n}];\n"
+      },
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        400
+      ]
+    },
+    {
+      "id": "call-openai",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": {{ JSON.stringify($json.system_prompt) }}},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.message_text) }}}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1000,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
+      },
+      "name": "Call OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        400
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "koikxNcf4ds6vKgZ",
+          "name": "OpenAI - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "extract-response",
+      "parameters": {
+        "functionCode": "const response = items[0].json;\nconst prepareData = $('Prepare Data').first().json;\nconst aiContent = response.choices[0].message.content;\n\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {\n  responseText = aiContent;\n}\n\n// Очищаем текст от спецсимволов Telegram Markdown\nresponseText = responseText\n  .replace(/\\*/g, '•')  // звёздочки → буллеты\n  .replace(/_/g, ' ')   // подчёркивания → пробелы\n  .replace(/`/g, \"'\")   // бэктики → кавычки\n  .replace(/\\[/g, '(')  // скобки\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    message_id: prepareData.message_id,\n    user_message: prepareData.message_text,\n    intent: prepareData.intent,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    is_plan_generation: prepareData.is_plan_generation,\n    weekly_runs: prepareData.weekly_runs\n  }\n}];"
+      },
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2040,
+        400
+      ]
+    },
+    {
+      "id": "send-telegram",
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id.toString() }}",
+        "text": "={{ $json.response_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "is-onboarding",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extract Response').first().json.intent }}",
+              "rightValue": "onboarding",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Is Onboarding?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        400
+      ]
+    },
+    {
+      "id": "build-update-data",
+      "parameters": {
+        "functionCode": "const data = $('Extract Response').first().json;\nconst extractedData = data.extracted_data || {};\n\nconst updateFields = {};\n\nlet actualNextStage = data.next_stage;\n\n// Определяем следующий этап на основе goal\nif (data.onboarding_stage === 'goal_type' && extractedData.goal) {\n  // Проверяем, достаточно ли данных для завершения\n  if (extractedData.goal === 'race') {\n    // Для забега нужны: дистанция и дата (целевое время опционально)\n    if (extractedData.race_distance && extractedData.race_date) {\n      actualNextStage = 'completed';\n    } else {\n      actualNextStage = 'race_details';\n    }\n  } else if (extractedData.goal === 'improvement') {\n    actualNextStage = 'improvement_details';\n  } else {\n    // general — сразу completed\n    actualNextStage = 'completed';\n  }\n}\n\n// Обновляем этап\nif (actualNextStage && actualNextStage !== data.onboarding_stage) {\n  updateFields.onboarding_stage = actualNextStage;\n}\n\n// Базовые поля профиля\nif (extractedData.level) updateFields.level = extractedData.level;\nif (extractedData.age) updateFields.age = extractedData.age;\nif (extractedData.height_cm) updateFields.height_cm = extractedData.height_cm;\nif (extractedData.weight_kg) updateFields.weight_kg = extractedData.weight_kg;\nif (extractedData.current_5k_pace_seconds) updateFields.current_5k_pace_seconds = extractedData.current_5k_pace_seconds;\nif (extractedData.weekly_runs) updateFields.weekly_runs = extractedData.weekly_runs;\nif (extractedData.goal) updateFields.goal = extractedData.goal;\n\n// Поля для забега/улучшения\nif (extractedData.race_distance) updateFields.race_distance = extractedData.race_distance;\nif (extractedData.race_date) updateFields.race_date = extractedData.race_date;\nif (extractedData.target_time_seconds) updateFields.target_time_seconds = extractedData.target_time_seconds;\nif (extractedData.target_date) updateFields.race_date = extractedData.target_date;\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0,\n    is_plan_generation: data.is_plan_generation || extractedData.plan_generated,\n    plan_data: extractedData.plan_generated ? {\n      total_km: extractedData.total_km,\n      total_sessions: extractedData.total_sessions\n    } : null,\n    response_text: data.response_text,\n    weekly_runs: data.weekly_runs\n  }\n}];\n"
+      },
+      "name": "Build Update Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "id": "has-updates",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.has_updates }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Has Updates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ]
+    },
+    {
+      "id": "update-user",
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "onboarding_stage",
+              "fieldValue": "={{ $json.update_fields.onboarding_stage }}"
+            },
+            {
+              "fieldId": "level",
+              "fieldValue": "={{ $json.update_fields.level }}"
+            },
+            {
+              "fieldId": "current_5k_pace_seconds",
+              "fieldValue": "={{ $json.update_fields.current_5k_pace_seconds }}"
+            },
+            {
+              "fieldId": "weekly_runs",
+              "fieldValue": "={{ $json.update_fields.weekly_runs }}"
+            },
+            {
+              "fieldId": "goal",
+              "fieldValue": "={{ $json.update_fields.goal }}"
+            },
+            {
+              "fieldId": "age",
+              "fieldValue": "={{ $json.update_fields.age }}"
+            },
+            {
+              "fieldId": "height_cm",
+              "fieldValue": "={{ $json.update_fields.height_cm }}"
+            },
+            {
+              "fieldId": "weight_kg",
+              "fieldValue": "={{ $json.update_fields.weight_kg }}"
+            },
+            {
+              "fieldId": "race_date",
+              "fieldValue": "={{ $json.update_fields.race_date }}"
+            },
+            {
+              "fieldId": "race_distance",
+              "fieldValue": "={{ $json.update_fields.race_distance }}"
+            },
+            {
+              "fieldId": "target_time_seconds",
+              "fieldValue": "={{ $json.update_fields.target_time_seconds }}"
+            }
+          ]
+        }
+      },
+      "name": "Update User Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3040,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "is-plan-generation",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extract Response').first().json.is_plan_generation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Is Plan Generation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        500
+      ]
+    },
+    {
+      "id": "prepare-plan-data",
+      "parameters": {
+        "functionCode": "const extractResponse = $('Extract Response').first().json;\n\nif (!extractResponse.is_plan_generation) {\n  return [];\n}\n\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\n\nconst formatDate = (d) => d.toISOString().split('T')[0];\n\nconst responseText = extractResponse.response_text || '';\nconst extracted = extractResponse.extracted_data || {};\n\nconst planData = {\n  raw_plan: responseText,\n  generated_at: new Date().toISOString(),\n  total_km: extracted.total_km || null,\n  total_sessions: extracted.total_sessions || extractResponse.weekly_runs || 3\n};\n\nreturn [{\n  json: {\n    user_id: extractResponse.user_id,\n    week_start: formatDate(monday),\n    week_end: formatDate(sunday),\n    week_number: 1,\n    plan_data: planData,\n    total_distance_km: extracted.total_km || null,\n    total_sessions: extracted.total_sessions || 3,\n    status: 'active'\n  }\n}];"
+      },
+      "name": "Prepare Plan Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        500
+      ]
+    },
+    {
+      "id": "save-plan",
+      "parameters": {
+        "operation": "create",
+        "tableId": "weekly_plans",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "week_start",
+              "fieldValue": "={{ $json.week_start }}"
+            },
+            {
+              "fieldId": "week_end",
+              "fieldValue": "={{ $json.week_end }}"
+            },
+            {
+              "fieldId": "week_number",
+              "fieldValue": "={{ $json.week_number }}"
+            },
+            {
+              "fieldId": "plan_data",
+              "fieldValue": "={{ JSON.stringify($json.plan_data) }}"
+            },
+            {
+              "fieldId": "total_distance_km",
+              "fieldValue": "={{ $json.total_distance_km }}"
+            },
+            {
+              "fieldId": "total_sessions",
+              "fieldValue": "={{ $json.total_sessions }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3040,
+        500
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "save-user-message",
+      "parameters": {
+        "operation": "create",
+        "tableId": "chat_history",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Extract Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "role",
+              "fieldValue": "user"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $('Extract Response').first().json.user_message }}"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "={{ $('Extract Response').first().json.intent === 'onboarding' ? 'onboarding' : 'general' }}"
+            },
+            {
+              "fieldId": "telegram_message_id",
+              "fieldValue": "={{ $('Extract Response').first().json.message_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Save User Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        600
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "save-bot-response",
+      "parameters": {
+        "operation": "create",
+        "tableId": "chat_history",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Extract Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "role",
+              "fieldValue": "assistant"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $('Extract Response').first().json.response_text }}"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "={{ $('Extract Response').first().json.intent === 'onboarding' ? 'onboarding' : $('Extract Response').first().json.is_plan_generation ? 'planning' : 'general' }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Bot Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        600
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "TelegramTrigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "Get User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User": {
+      "main": [
+        [
+          {
+            "node": "Check User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check User": {
+      "main": [
+        [
+          {
+            "node": "User Not Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Not Found?": {
+      "main": [
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Active Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Plan": {
+      "main": [
+        [
+          {
+            "node": "Merge User & Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge User & Plan": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Get User Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Again": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Call OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Extract Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Response": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Telegram": {
+      "main": [
+        [
+          {
+            "node": "Is Onboarding?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Plan Generation?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save User Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Onboarding?": {
+      "main": [
+        [
+          {
+            "node": "Build Update Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Build Update Data": {
+      "main": [
+        [
+          {
+            "node": "Has Updates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Updates?": {
+      "main": [
+        [
+          {
+            "node": "Update User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Is Plan Generation?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Plan Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Plan Data": {
+      "main": [
+        [
+          {
+            "node": "Save Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save User Message": {
+      "main": [
+        [
+          {
+            "node": "Save Bot Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

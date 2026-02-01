@@ -50,12 +50,15 @@ CREATE TABLE users (
 
   -- Onboarding status
   onboarding_stage TEXT DEFAULT 'started' CHECK (onboarding_stage IN (
-    'started',      -- Just /start, no data yet
-    'profile',      -- Collecting basic info (level)
-    'physical',     -- Collecting physical data (age, height, weight)
-    'running_info', -- Collecting running experience
-    'goal',         -- Setting goal
-    'completed'     -- Ready to use
+    'started',            -- Just /start, no data yet
+    'profile',            -- Collecting basic info (level)
+    'physical',           -- Collecting physical data (age, height, weight)
+    'running_info',       -- Collecting running experience
+    'goal',               -- Setting pace
+    'goal_type',          -- Setting weekly_runs and goal type
+    'race_details',       -- For race goal: collecting date, distance, target time
+    'improvement_details', -- For improvement goal: collecting target result and timeline
+    'completed'           -- Ready to use
   )),
   onboarding_data JSONB DEFAULT '{}', -- Temporary storage for onboarding answers
 
