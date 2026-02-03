@@ -1,0 +1,1597 @@
+{
+  "name": "AI Running Coach - Main Chatbot v5 (Photo + Stats)",
+  "nodes": [
+    {
+      "id": "telegram-trigger",
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "name": "TelegramTrigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "extract-message",
+      "parameters": {
+        "functionCode": "const msg = items[0].json.message;\n\n// Определяем тип сообщения\nlet messageType = 'text';\nlet photoFileId = null;\nlet photoCaption = '';\n\nif (msg.photo && msg.photo.length > 0) {\n  messageType = 'photo';\n  // Берём фото максимального размера (последнее в массиве)\n  photoFileId = msg.photo[msg.photo.length - 1].file_id;\n  photoCaption = msg.caption || '';\n}\n\nreturn [{\n  json: {\n    telegram_id: msg.from.id,\n    chat_id: msg.chat.id,\n    username: msg.from.username || '',\n    first_name: msg.from.first_name || 'Друг',\n    last_name: msg.from.last_name || '',\n    message_text: msg.text || photoCaption || '',\n    message_id: msg.message_id,\n    message_type: messageType,\n    photo_file_id: photoFileId\n  }\n}];"
+      },
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [440, 400]
+    },
+    {
+      "id": "get-user",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Get User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [640, 400],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "check-user",
+      "parameters": {
+        "functionCode": "const messageData = $('Extract Message').first().json;\n\nif (items.length === 0 || !items[0].json || !items[0].json.id) {\n  return [{\n    json: {\n      userExists: false,\n      telegram_id: messageData.telegram_id,\n      chat_id: messageData.chat_id,\n      username: messageData.username,\n      first_name: messageData.first_name,\n      last_name: messageData.last_name,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id,\n      message_type: messageData.message_type,\n      photo_file_id: messageData.photo_file_id\n    }\n  }];\n} else {\n  const userData = items[0].json;\n  return [{\n    json: {\n      userExists: true,\n      user_id: userData.id,\n      telegram_id: userData.telegram_id,\n      first_name: userData.first_name || messageData.first_name,\n      onboarding_stage: userData.onboarding_stage || 'started',\n      level: userData.level,\n      age: userData.age,\n      height_cm: userData.height_cm,\n      weight_kg: userData.weight_kg,\n      weekly_runs: userData.weekly_runs,\n      goal: userData.goal,\n      current_5k_pace_seconds: userData.current_5k_pace_seconds,\n      race_date: userData.race_date,\n      race_distance: userData.race_distance,\n      target_time_seconds: userData.target_time_seconds,\n      resting_hr: userData.resting_hr,\n      max_hr: userData.max_hr,\n      has_lab_testing: userData.has_lab_testing,\n      vo2max: userData.vo2max,\n      lthr: userData.lthr,\n      hr_zone1_max: userData.hr_zone1_max,\n      hr_zone2_max: userData.hr_zone2_max,\n      hr_zone3_max: userData.hr_zone3_max,\n      hr_zone4_max: userData.hr_zone4_max,\n      hr_zone5_max: userData.hr_zone5_max,\n      chat_id: messageData.chat_id,\n      message_text: messageData.message_text,\n      message_id: messageData.message_id,\n      message_type: messageData.message_type,\n      photo_file_id: messageData.photo_file_id\n    }\n  }];\n}"
+      },
+      "name": "Check User",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [840, 400]
+    },
+    {
+      "id": "is-photo",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "photo-check",
+              "leftValue": "={{ $json.message_type }}",
+              "rightValue": "photo",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "completed-check",
+              "leftValue": "={{ $json.onboarding_stage }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Is Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1040, 400]
+    },
+    {
+      "id": "get-photo-file",
+      "parameters": {
+        "resource": "file",
+        "operation": "get",
+        "fileId": "={{ $json.photo_file_id }}",
+        "download": true
+      },
+      "name": "Download Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1240, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "prepare-photo-url",
+      "parameters": {
+        "functionCode": "const checkUserData = $('Check User').first().json;\n\n// Получаем бинарные данные изображения\nlet base64Image = '';\nlet mimeType = 'image/jpeg';\n\n// В n8n Function node бинарные данные доступны через items[0].binary\nif (items[0].binary) {\n  const binaryKeys = Object.keys(items[0].binary);\n  if (binaryKeys.length > 0) {\n    const binaryKey = binaryKeys[0];\n    const binaryItem = items[0].binary[binaryKey];\n    \n    if (binaryItem) {\n      base64Image = binaryItem.data;\n      mimeType = binaryItem.mimeType || 'image/jpeg';\n    }\n  }\n}\n\nreturn [{\n  json: {\n    user_id: checkUserData.user_id,\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id,\n    base64_image: base64Image,\n    mime_type: mimeType,\n    has_image: base64Image.length > 0\n  }\n}];"
+      },
+      "name": "Prepare Image Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1440, 200]
+    },
+    {
+      "id": "call-gpt4o-vision",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Ты — система распознавания данных тренировок с фотографий и скриншотов беговых приложений.\\n\\nАНАЛИЗИРУЙ изображение и извлеки данные о тренировке.\\n\\nИЩИ НА ИЗОБРАЖЕНИИ:\\n• Дистанция (км или м)\\n• Время/длительность тренировки\\n• Средний темп (мин:сек на км)\\n• Средний пульс (если есть)\\n• Максимальный пульс (если есть)\\n• Калории (если есть)\\n• Набор высоты (если есть)\\n\\nВЕРНИ СТРОГО JSON:\\n{\\n  \\\"recognized\\\": true/false,\\n  \\\"confidence\\\": \\\"high\\\"/\\\"medium\\\"/\\\"low\\\",\\n  \\\"data\\\": {\\n    \\\"distance_km\\\": число или null,\\n    \\\"duration_seconds\\\": число в секундах или null,\\n    \\\"avg_pace_seconds\\\": число (сек/км) или null,\\n    \\\"avg_heart_rate\\\": число или null,\\n    \\\"max_heart_rate\\\": число или null,\\n    \\\"calories\\\": число или null,\\n    \\\"elevation_gain_m\\\": число или null,\\n    \\\"type\\\": \\\"easy_run\\\"/\\\"long_run\\\"/\\\"tempo\\\"/\\\"intervals\\\"/\\\"recovery\\\"\\n  },\\n  \\\"source_app\\\": \\\"название приложения если узнал\\\",\\n  \\\"response\\\": \\\"краткое подтверждение для пользователя\\\"\\n}\\n\\nПРАВИЛА КОНВЕРТАЦИИ:\\n• Темп 5:30/км = 330 секунд\\n• Время 45:30 = 2730 секунд\\n• Дистанция 5.2км = 5.2\\n• Если данные нечёткие, confidence = \\\"low\\\"\\n\\nЕсли НЕ удалось распознать тренировку:\\n{\\n  \\\"recognized\\\": false,\\n  \\\"response\\\": \\\"Не удалось распознать данные тренировки. Попробуй прислать более чёткий скриншот или напиши результат текстом.\\\"\\n}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:{{ $json.mime_type }};base64,{{ $json.base64_image }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"{{ $json.message_text ? 'Подпись к фото: ' + $json.message_text : 'Распознай данные тренировки с этого изображения' }}\"\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
+      },
+      "name": "GPT-4o Vision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "koikxNcf4ds6vKgZ",
+          "name": "OpenAI - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "parse-vision-response",
+      "parameters": {
+        "functionCode": "const checkUserData = $('Check User').first().json;\nconst visionResponse = items[0].json;\nconst aiContent = visionResponse.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(aiContent);\n} catch (e) {\n  parsed = {\n    recognized: false,\n    response: 'Ошибка при обработке фото. Попробуй ещё раз или напиши результат текстом.'\n  };\n}\n\n// Очищаем текст для Telegram\nlet responseText = parsed.response || 'Фото обработано';\nresponseText = responseText\n  .replace(/\\*/g, '•')\n  .replace(/_/g, ' ')\n  .replace(/`/g, \"'\")\n  .replace(/\\[/g, '(')\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: checkUserData.user_id,\n    chat_id: checkUserData.chat_id,\n    message_id: checkUserData.message_id,\n    recognized: parsed.recognized || false,\n    confidence: parsed.confidence || 'low',\n    training_data: parsed.data || null,\n    source_app: parsed.source_app || null,\n    response_text: responseText,\n    is_photo_training: true\n  }\n}];"
+      },
+      "name": "Parse Vision Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1840, 200]
+    },
+    {
+      "id": "is-training-recognized",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "recognized-check",
+              "leftValue": "={{ $json.recognized }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Training Recognized?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2040, 200]
+    },
+    {
+      "id": "save-photo-training",
+      "parameters": {
+        "operation": "create",
+        "tableId": "trainings",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "date",
+              "fieldValue": "={{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "fieldId": "day_of_week",
+              "fieldValue": "={{ $now.format('EEEE').toLowerCase() }}"
+            },
+            {
+              "fieldId": "type",
+              "fieldValue": "={{ $json.training_data.type || 'easy_run' }}"
+            },
+            {
+              "fieldId": "distance_km",
+              "fieldValue": "={{ $json.training_data.distance_km }}"
+            },
+            {
+              "fieldId": "duration_seconds",
+              "fieldValue": "={{ $json.training_data.duration_seconds }}"
+            },
+            {
+              "fieldId": "avg_pace_seconds",
+              "fieldValue": "={{ $json.training_data.avg_pace_seconds }}"
+            },
+            {
+              "fieldId": "avg_heart_rate",
+              "fieldValue": "={{ $json.training_data.avg_heart_rate }}"
+            },
+            {
+              "fieldId": "max_heart_rate",
+              "fieldValue": "={{ $json.training_data.max_heart_rate }}"
+            },
+            {
+              "fieldId": "calories",
+              "fieldValue": "={{ $json.training_data.calories }}"
+            },
+            {
+              "fieldId": "elevation_gain_m",
+              "fieldValue": "={{ $json.training_data.elevation_gain_m }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "screenshot"
+            },
+            {
+              "fieldId": "is_planned",
+              "fieldValue": "={{ false }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Photo Training",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2240, 100],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "update-user-stats",
+      "parameters": {
+        "functionCode": "// Получаем данные тренировки\nconst parseResponse = $('Parse Vision Response').first().json;\nconst trainingData = parseResponse.training_data;\nconst userId = parseResponse.user_id;\n\nif (!trainingData || !trainingData.distance_km) {\n  return [{ json: parseResponse }];\n}\n\n// Возвращаем данные для обновления stats\nreturn [{\n  json: {\n    ...parseResponse,\n    stats_update: {\n      distance_to_add: trainingData.distance_km,\n      duration_to_add: trainingData.duration_seconds || 0\n    }\n  }\n}];"
+      },
+      "name": "Prepare Stats Update",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2440, 100]
+    },
+    {
+      "id": "get-user-stats",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "user_stats",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Get User Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2640, 100],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "upsert-user-stats",
+      "parameters": {
+        "functionCode": "const prevData = $('Prepare Stats Update').first().json;\nconst statsItems = items;\nconst statsUpdate = prevData.stats_update;\n\nlet existingStats = null;\nif (statsItems.length > 0 && statsItems[0].json && statsItems[0].json.id) {\n  existingStats = statsItems[0].json;\n}\n\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\n\n// Определяем начало текущей недели (понедельник)\nconst dayOfWeek = now.getDay();\nconst mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - mondayOffset);\nconst weekStart = monday.toISOString().split('T')[0];\n\n// Определяем начало текущего месяца\nconst monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;\n\nif (existingStats) {\n  // Обновляем существующую запись\n  const lastTrainingDate = existingStats.last_training_date;\n  \n  // Проверяем, нужно ли сбросить недельную статистику\n  let weekDistance = existingStats.week_distance_km || 0;\n  let weekTrainings = existingStats.week_trainings || 0;\n  \n  // Проверяем, нужно ли сбросить месячную статистику\n  let monthDistance = existingStats.month_distance_km || 0;\n  let monthTrainings = existingStats.month_trainings || 0;\n  \n  // Обновляем стрик\n  let currentStreak = existingStats.current_streak_days || 0;\n  if (lastTrainingDate) {\n    const lastDate = new Date(lastTrainingDate);\n    const diffDays = Math.floor((now - lastDate) / (24 * 60 * 60 * 1000));\n    if (diffDays > 1) {\n      currentStreak = 1; // Стрик прервался\n    } else if (diffDays === 1) {\n      currentStreak += 1;\n    }\n    // Если тренировка в тот же день - стрик не меняется\n  } else {\n    currentStreak = 1;\n  }\n  \n  const longestStreak = Math.max(existingStats.longest_streak_days || 0, currentStreak);\n  \n  return [{\n    json: {\n      operation: 'update',\n      stats_id: existingStats.id,\n      user_id: prevData.user_id,\n      total_distance_km: (existingStats.total_distance_km || 0) + statsUpdate.distance_to_add,\n      total_trainings: (existingStats.total_trainings || 0) + 1,\n      total_duration_seconds: (existingStats.total_duration_seconds || 0) + statsUpdate.duration_to_add,\n      week_distance_km: weekDistance + statsUpdate.distance_to_add,\n      week_trainings: weekTrainings + 1,\n      month_distance_km: monthDistance + statsUpdate.distance_to_add,\n      month_trainings: monthTrainings + 1,\n      current_streak_days: currentStreak,\n      longest_streak_days: longestStreak,\n      last_training_date: today,\n      chat_id: prevData.chat_id,\n      response_text: prevData.response_text\n    }\n  }];\n} else {\n  // Создаём новую запись\n  return [{\n    json: {\n      operation: 'create',\n      user_id: prevData.user_id,\n      total_distance_km: statsUpdate.distance_to_add,\n      total_trainings: 1,\n      total_duration_seconds: statsUpdate.duration_to_add,\n      week_distance_km: statsUpdate.distance_to_add,\n      week_trainings: 1,\n      month_distance_km: statsUpdate.distance_to_add,\n      month_trainings: 1,\n      current_streak_days: 1,\n      longest_streak_days: 1,\n      last_training_date: today,\n      chat_id: prevData.chat_id,\n      response_text: prevData.response_text\n    }\n  }];\n}"
+      },
+      "name": "Calculate Stats",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2840, 100]
+    },
+    {
+      "id": "is-stats-update",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "update-check",
+              "leftValue": "={{ $json.operation }}",
+              "rightValue": "update",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Stats Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3040, 100]
+    },
+    {
+      "id": "update-stats-db",
+      "parameters": {
+        "operation": "update",
+        "tableId": "user_stats",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.stats_id }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "total_distance_km",
+              "fieldValue": "={{ $json.total_distance_km }}"
+            },
+            {
+              "fieldId": "total_trainings",
+              "fieldValue": "={{ $json.total_trainings }}"
+            },
+            {
+              "fieldId": "total_duration_seconds",
+              "fieldValue": "={{ $json.total_duration_seconds }}"
+            },
+            {
+              "fieldId": "week_distance_km",
+              "fieldValue": "={{ $json.week_distance_km }}"
+            },
+            {
+              "fieldId": "week_trainings",
+              "fieldValue": "={{ $json.week_trainings }}"
+            },
+            {
+              "fieldId": "month_distance_km",
+              "fieldValue": "={{ $json.month_distance_km }}"
+            },
+            {
+              "fieldId": "month_trainings",
+              "fieldValue": "={{ $json.month_trainings }}"
+            },
+            {
+              "fieldId": "current_streak_days",
+              "fieldValue": "={{ $json.current_streak_days }}"
+            },
+            {
+              "fieldId": "longest_streak_days",
+              "fieldValue": "={{ $json.longest_streak_days }}"
+            },
+            {
+              "fieldId": "last_training_date",
+              "fieldValue": "={{ $json.last_training_date }}"
+            }
+          ]
+        }
+      },
+      "name": "Update Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3240, 0],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "create-stats-db",
+      "parameters": {
+        "operation": "create",
+        "tableId": "user_stats",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "total_distance_km",
+              "fieldValue": "={{ $json.total_distance_km }}"
+            },
+            {
+              "fieldId": "total_trainings",
+              "fieldValue": "={{ $json.total_trainings }}"
+            },
+            {
+              "fieldId": "total_duration_seconds",
+              "fieldValue": "={{ $json.total_duration_seconds }}"
+            },
+            {
+              "fieldId": "week_distance_km",
+              "fieldValue": "={{ $json.week_distance_km }}"
+            },
+            {
+              "fieldId": "week_trainings",
+              "fieldValue": "={{ $json.week_trainings }}"
+            },
+            {
+              "fieldId": "month_distance_km",
+              "fieldValue": "={{ $json.month_distance_km }}"
+            },
+            {
+              "fieldId": "month_trainings",
+              "fieldValue": "={{ $json.month_trainings }}"
+            },
+            {
+              "fieldId": "current_streak_days",
+              "fieldValue": "={{ $json.current_streak_days }}"
+            },
+            {
+              "fieldId": "longest_streak_days",
+              "fieldValue": "={{ $json.longest_streak_days }}"
+            },
+            {
+              "fieldId": "last_training_date",
+              "fieldValue": "={{ $json.last_training_date }}"
+            }
+          ]
+        }
+      },
+      "name": "Create Stats",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3240, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "merge-stats-result",
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "options": {}
+      },
+      "name": "Merge Stats",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [3440, 100]
+    },
+    {
+      "id": "format-photo-response",
+      "parameters": {
+        "functionCode": "// Берём данные из Calculate Stats (до обновления БД)\nlet calcData;\ntry {\n  calcData = $('Calculate Stats').first().json;\n} catch (e) {\n  calcData = items[0].json;\n}\n\nconst responseText = calcData.response_text || 'Тренировка записана!';\n\nreturn [{\n  json: {\n    chat_id: calcData.chat_id,\n    response_text: responseText + ' 📊',\n    is_photo_training: true\n  }\n}];"
+      },
+      "name": "Format Photo Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3640, 100]
+    },
+    {
+      "id": "send-photo-response",
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id.toString() }}",
+        "text": "={{ $json.response_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Send Photo Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3840, 100],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "send-not-recognized",
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id.toString() }}",
+        "text": "={{ $json.response_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Send Not Recognized",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2240, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "user-not-found",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.userExists }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "User Not Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1240, 500]
+    },
+    {
+      "id": "get-active-plan",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "weekly_plans",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Check User').first().json.user_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "options": {
+          "orderByColumn": "created_at",
+          "orderType": "desc"
+        }
+      },
+      "name": "Get Active Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1440, 600],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "get-trainings-for-stats",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "trainings",
+        "returnAll": false,
+        "limit": 50,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Check User').first().json.user_id }}"
+            }
+          ]
+        },
+        "options": {
+          "orderByColumn": "date",
+          "orderType": "desc"
+        }
+      },
+      "name": "Get Recent Trainings",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1440, 700],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "merge-user-plan-stats",
+      "parameters": {
+        "functionCode": "const checkUserData = $('Check User').first().json;\nconst planItems = $('Get Active Plan').all();\nconst trainingItems = $('Get Recent Trainings').all();\n\nlet activePlan = null;\nif (planItems.length > 0 && planItems[0].json && planItems[0].json.id) {\n  activePlan = planItems[0].json;\n}\n\nlet recentTrainings = [];\nif (trainingItems.length > 0) {\n  recentTrainings = trainingItems.map(t => t.json);\n}\n\nreturn [{\n  json: {\n    ...checkUserData,\n    active_plan: activePlan,\n    recent_trainings: recentTrainings\n  }\n}];"
+      },
+      "name": "Merge User & Plan & Trainings",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1640, 600]
+    },
+    {
+      "id": "create-user",
+      "parameters": {
+        "operation": "create",
+        "tableId": "users",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "telegram_id",
+              "fieldValue": "={{ $json.telegram_id }}"
+            },
+            {
+              "fieldId": "username",
+              "fieldValue": "={{ $json.username }}"
+            },
+            {
+              "fieldId": "first_name",
+              "fieldValue": "={{ $json.first_name }}"
+            },
+            {
+              "fieldId": "last_name",
+              "fieldValue": "={{ $json.last_name }}"
+            },
+            {
+              "fieldId": "onboarding_stage",
+              "fieldValue": "started"
+            },
+            {
+              "fieldId": "language",
+              "fieldValue": "ru"
+            }
+          ]
+        }
+      },
+      "name": "Create User",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1440, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "get-user-again",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Check User').first().json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Get User Again",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1640, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "prepare-data",
+      "parameters": {
+        "functionCode": "// RACE-ONLY + STATS Prepare Data v0.5.0\n// Получаем данные пользователя (из Check User или Merge User & Plan)\nlet checkUserData;\ntry {\n  checkUserData = $('Merge User & Plan & Trainings').first().json;\n} catch (e) {\n  try {\n    checkUserData = $('Check User').first().json;\n  } catch (e2) {\n    checkUserData = items[0].json;\n  }\n}\n\nlet userData, messageData, activePlan, recentTrainings;\n\nif (checkUserData.userExists) {\n  userData = {\n    id: checkUserData.user_id,\n    first_name: checkUserData.first_name,\n    onboarding_stage: checkUserData.onboarding_stage || 'started',\n    level: checkUserData.level,\n    weekly_runs: checkUserData.weekly_runs,\n    age: checkUserData.age,\n    height_cm: checkUserData.height_cm,\n    weight_kg: checkUserData.weight_kg,\n    resting_hr: checkUserData.resting_hr,\n    max_hr: checkUserData.max_hr,\n    has_lab_testing: checkUserData.has_lab_testing,\n    vo2max: checkUserData.vo2max,\n    lthr: checkUserData.lthr,\n    current_5k_pace_seconds: checkUserData.current_5k_pace_seconds,\n    race_date: checkUserData.race_date,\n    race_distance: checkUserData.race_distance,\n    target_time_seconds: checkUserData.target_time_seconds\n  };\n  messageData = {\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id\n  };\n  activePlan = checkUserData.active_plan || null;\n  recentTrainings = checkUserData.recent_trainings || [];\n} else {\n  userData = items[0].json;\n  userData.onboarding_stage = 'started';\n  messageData = {\n    chat_id: checkUserData.chat_id,\n    message_text: checkUserData.message_text,\n    message_id: checkUserData.message_id\n  };\n  activePlan = null;\n  recentTrainings = [];\n}\n\nconst message = messageData.message_text;\nconst stage = userData.onboarding_stage;\nconst firstName = userData.first_name || 'друг';\n\nlet intent = 'general';\nlet systemPrompt = '';\nlet nextStage = stage;\nlet isPlanGeneration = false;\nlet isStrategyGeneration = false;\nlet isStatsRequest = false;\n\nconst JSON_FORMAT = `ФОРМАТ ОТВЕТА — СТРОГО JSON:\\n{\\n  \"extracted\": {...},\\n  \"response\": \"текст ответа\"\\n}\\n\\nВАЖНО: поле \"response\" должно содержать ЧИТАЕМЫЙ ТЕКСТ для пользователя.\\nНЕ используй символы * _ \\` [ ] — они ломают Telegram.\\nИспользуй • для списков, обычные скобки () для пояснений.`;\n\n// ============================================\n// ПРОВЕРКА НА ЗАПРОС СТАТИСТИКИ\n// ============================================\nconst statsPatterns = /статистик|как я (по)?бегал|мои результат|сколько (про|на)бегал|прогресс|итоги|за (эту |прошлую )?недел|за (этот |прошлый )?месяц|за сегодня|вчера|позавчера/i;\n\nif (stage === 'completed' && statsPatterns.test(message)) {\n  intent = 'stats';\n  isStatsRequest = true;\n  \n  // Подготавливаем данные о тренировках\n  let trainingsContext = 'Тренировок пока нет.';\n  if (recentTrainings.length > 0) {\n    const formatPace = (sec) => {\n      if (!sec) return 'н/д';\n      return `${Math.floor(sec/60)}:${(sec%60).toString().padStart(2,'0')}`;\n    };\n    \n    trainingsContext = 'ПОСЛЕДНИЕ ТРЕНИРОВКИ:\\n';\n    recentTrainings.slice(0, 14).forEach(t => {\n      trainingsContext += `• ${t.date}: ${t.distance_km}км за ${Math.round(t.duration_seconds/60)}мин, темп ${formatPace(t.avg_pace_seconds)}/км`;\n      if (t.avg_heart_rate) trainingsContext += `, пульс ${t.avg_heart_rate}`;\n      trainingsContext += '\\n';\n    });\n  }\n  \n  systemPrompt = `Ты AI-тренер для ${firstName}. НЕ здоровайся.\\n\\nЗАПРОС: \"${message}\"\\n\\n${trainingsContext}\\n\\nЗАДАЧА: Проанализируй тренировки и дай статистику по запросу.\\n\\nПРАВИЛА:\\n• Если спрашивают за неделю — показывай за последние 7 дней\\n• Если спрашивают за месяц — за 30 дней\\n• Считай суммарную дистанцию, количество тренировок, средний темп\\n• Дай краткую оценку прогресса\\n• Используй эмодзи для наглядности (но умеренно)\\n\\nФОРМАТ СТАТИСТИКИ:\\n📊 Статистика за [период]:\\n• Тренировок: X\\n• Дистанция: X км\\n• Время: X ч X мин\\n• Средний темп: X:XX/км\\n\\n💬 Твоя оценка (1-2 предложения)\\n\\n${JSON_FORMAT}\\nextracted: {\"stats_period\": \"week\"|\"month\"|\"custom\", \"days\": число}`;\n  \n}\n// ============================================\n// ONBOARDING (RACE-ONLY)\n// ============================================\nelse if (stage !== 'completed') {\n  intent = 'onboarding';\n\n  switch (stage) {\n    case 'started':\n      systemPrompt = `Ты AI-тренер по бегу. Пользователь ${firstName} только что запустил бота.\\n\\nЗАДАЧА — написать приветственное сообщение:\\n1. Поприветствуй по имени\\n2. Представься как AI-тренер, специализирующийся на подготовке к ШОССЕЙНЫМ ЗАБЕГАМ (road running)\\n3. Объясни что умеет бот:\\n   • Составляет персональную СТРАТЕГИЮ подготовки к забегу\\n   • Генерирует недельные планы с разминкой, основной частью и заминкой\\n   • Учитывает пульсовые зоны и темп\\n   • Распознаёт фото/скриншоты тренировок\\n   • Ведёт статистику и анализирует прогресс\\n4. Уточни специализацию:\\n   \"Я специализируюсь на шоссейном беге — классические забеги по асфальту от 5К до ультрамарафонов.\\n   Трейлраннинг (бег по пересечённой местности) пока не моя специализация — там другая методика подготовки.\"\\n5. Задай первый вопрос: какой уровень бега?\\n   • Новичок (бегаю меньше года)\\n   • Любитель (1-3 года регулярно)\\n   • Продвинутый (3+ года, есть результаты на забегах)\\n\\n${JSON_FORMAT}\\nextracted: {}`;\n      nextStage = 'profile';\n      break;\n\n    case 'profile':\n      systemPrompt = `AI-тренер. ${firstName} ответил про уровень бега. НЕ здоровайся — диалог уже идёт.\\n\\nЗАДАЧА:\\n1. Определи уровень: beginner (новичок), intermediate (любитель), advanced (продвинутый)\\n2. Коротко подтверди выбор\\n3. Спроси возраст — нужен для расчёта максимального пульса и тренировочных зон\\n\\n${JSON_FORMAT}\\nextracted: {\"level\": \"beginner\"|\"intermediate\"|\"advanced\"}`;\n      nextStage = 'physical';\n      break;\n\n    case 'physical':\n      systemPrompt = `AI-тренер. ${firstName} указал возраст. НЕ здоровайся.\\n\\nЗАДАЧА:\\n1. Извлеки возраст\\n2. Спроси рост (см) и вес (кг) — нужно для расчёта безопасных нагрузок и BMI\\n\\n${JSON_FORMAT}\\nextracted: {\"age\": число}`;\n      nextStage = 'heart_rate';\n      break;\n\n    case 'heart_rate':\n      systemPrompt = `AI-тренер. ${firstName} указал рост и вес. НЕ здоровайся.\\n\\nЗАДАЧА:\\n1. Извлеки рост (см) и вес (кг)\\n2. Спроси про пульс покоя:\\n\\n\"Знаешь свой пульс покоя?\\n\\nКак измерить: утром, не вставая с кровати, посчитай пульс за 60 секунд.\\nЛучше измерить 3-5 дней и взять среднее.\\n\\nТипичные значения:\\n• 60-80 уд/мин — обычный уровень\\n• 50-60 уд/мин — хорошая форма\\n• 40-50 уд/мин — отличная форма\\n\\nЕсли не знаешь — напиши 'не знаю', посчитаю по стандартным значениям.\"\\n\\n${JSON_FORMAT}\\nextracted: {\"height_cm\": число, \"weight_kg\": число}`;\n      nextStage = 'running_info';\n      break;\n\n    case 'running_info':\n      systemPrompt = `AI-тренер. ${firstName} ответил про пульс покоя. НЕ здоровайся.\\n\\nЗАДАЧА:\\n1. Извлеки пульс покоя в уд/мин. Если написал \"не знаю\" — поставь null\\n2. Спроси про текущий темп:\\n\\n\"Какой твой текущий темп на 5 км?\\n\\nПримеры:\\n• '5:30 на км'\\n• 'пробегаю 5км за 28 минут'\\n• 'бегаю в темпе 6 минут'\\n\\nЕсли не знаешь точно — напиши примерно или 'не знаю'\"\\n\\n${JSON_FORMAT}\\nextracted: {\"resting_hr\": число|null}`;\n      nextStage = 'lab_testing';\n      break;\n\n    case 'lab_testing':\n      systemPrompt = `AI-тренер. ${firstName} указал темп. НЕ здоровайся.\\n\\nЗАДАЧА:\\n1. Извлеки темп в секундах/км:\\n   • \"5:30\" = 330 сек\\n   • \"6:00 на км\" = 360 сек\\n   • \"28 мин на 5км\" = 336 сек (28*60/5)\\n   • Если не указал — null\\n\\n2. Спроси про лабораторное тестирование:\\n\\n\"Есть результаты профессионального тестирования (спироэргометрия, VO2max тест на дорожке с маской)?\\n\\nЕсли да — можешь поделиться:\\n• VO2max (мл/кг/мин)\\n• Пороговый пульс (LTHR)\\n\\nЕсли нет — напиши 'нет', рассчитаю зоны по формулам.\"\\n\\n${JSON_FORMAT}\\nextracted: {\"current_5k_pace_seconds\": число|null}`;\n      nextStage = 'training_freq';\n      break;\n\n    case 'training_freq':\n      systemPrompt = `AI-тренер. ${firstName} ответил про тестирование. НЕ здоровайся.\\n\\nЗАДАЧА:\\n1. Определи, есть ли лабораторные данные:\\n   • Если да — извлеки vo2max и/или lthr\\n   • Если нет — has_lab_testing = false\\n\\n2. Спроси про частоту тренировок:\\n\\n\"Сколько дней в неделю готов тренироваться?\\n\\nРекомендации:\\n• 3 дня — минимум для прогресса\\n• 4 дня — оптимально для любителей\\n• 5-6 дней — для продвинутых бегунов\\n\\nВажно: 1-2 дня отдыха обязательны для восстановления!\"\\n\\n${JSON_FORMAT}\\nextracted: {\"has_lab_testing\": true|false, \"vo2max\": число|null, \"lthr\": число|null}`;\n      nextStage = 'race_details';\n      break;\n\n    case 'race_details':\n      systemPrompt = `AI-тренер. ${firstName} указал частоту тренировок. НЕ здоровайся.\\n\\nЗАДАЧА:\\n1. Извлеки weekly_runs (3-6 дней в неделю)\\n2. Спроси детали забега:\\n\\n\"К какому забегу готовимся?\\n\\nРасскажи:\\n• Дистанция (5К, 10К, полумарафон, марафон или ультра)\\n• Когда забег? (дата или 'через X месяцев')\\n• Целевое время (если есть конкретная цель)\\n\\nНапример: 'полумарафон в сентябре, хочу за 1:50'\"\\n\\n${JSON_FORMAT}\\nextracted: {\"weekly_runs\": число}`;\n      nextStage = 'strategy_preview';\n      break;\n\n    case 'strategy_preview':\n      const distanceRu = {\n        '5k': '5 км', '10k': '10 км', 'half': 'полумарафон',\n        'marathon': 'марафон', 'ultra': 'ультра'\n      };\n\n      let weeksToRace = 12;\n      if (userData.race_date) {\n        const raceDate = new Date(userData.race_date);\n        const today = new Date();\n        weeksToRace = Math.floor((raceDate - today) / (7 * 24 * 60 * 60 * 1000));\n        if (weeksToRace < 4) weeksToRace = 4;\n        if (weeksToRace > 52) weeksToRace = 52;\n      }\n\n      const maxHR = userData.max_hr || (220 - userData.age);\n      const restingHR = userData.resting_hr || (userData.level === 'beginner' ? 70 : userData.level === 'intermediate' ? 60 : 50);\n\n      const hrReserve = maxHR - restingHR;\n      const zone1Max = Math.round(restingHR + hrReserve * 0.6);\n      const zone2Max = Math.round(restingHR + hrReserve * 0.7);\n      const zone3Max = Math.round(restingHR + hrReserve * 0.8);\n      const zone4Max = Math.round(restingHR + hrReserve * 0.9);\n\n      systemPrompt = `AI-тренер. ${firstName} указал детали забега. НЕ здоровайся.\\n\\nСООБЩЕНИЕ: \"${message}\"\\n\\nЗАДАЧА:\\n1. Извлеки из сообщения:\\n   • race_distance: \"5k\", \"10k\", \"half\", \"marathon\", \"ultra\"\\n   • race_date: формат YYYY-MM-DD\\n     - \"в сентябре\" → \"2026-09-15\"\\n     - \"через 3 месяца\" → посчитай от сегодня (февраль 2026)\\n   • target_time_seconds: целевое время в секундах (если указано)\\n\\n2. СГЕНЕРИРУЙ СТРАТЕГИЮ ПОДГОТОВКИ:\\n\\nДанные пользователя:\\n• Уровень: ${userData.level === 'beginner' ? 'новичок' : userData.level === 'intermediate' ? 'любитель' : 'продвинутый'}\\n• Возраст: ${userData.age} лет\\n• Max HR: ${maxHR} уд/мин\\n• Resting HR: ${restingHR} уд/мин\\n• Темп 5км: ${userData.current_5k_pace_seconds ? Math.floor(userData.current_5k_pace_seconds/60) + ':' + (userData.current_5k_pace_seconds%60).toString().padStart(2,'0') + '/км' : 'не указан'}\\n• Тренировок в неделю: ${userData.weekly_runs}\\n${userData.vo2max ? '• VO2max: ' + userData.vo2max + ' мл/кг/мин' : ''}\\n${userData.lthr ? '• Пороговый пульс: ' + userData.lthr + ' уд/мин' : ''}\\n\\nПУЛЬСОВЫЕ ЗОНЫ (Карвонен):\\n• Зона 1 (восстановление): до ${zone1Max} уд/мин\\n• Зона 2 (аэробная база): ${zone1Max}-${zone2Max} уд/мин — 80% тренировок!\\n• Зона 3 (темповая): ${zone2Max}-${zone3Max} уд/мин\\n• Зона 4 (пороговая): ${zone3Max}-${zone4Max} уд/мин\\n• Зона 5 (VO2max): ${zone4Max}+ уд/мин\\n\\nФОРМАТ СТРАТЕГИИ:\\nПокажи периодизацию с учётом недель до забега.\\nИспользуй фазы: БАЗА → РАЗВИТИЕ → СПЕЦИАЛИЗАЦИЯ → ТЕЙПЕР\\nУкажи примерные объёмы для каждой фазы.\\n\\nВ конце спроси: \"Готов начать? Составлю первый недельный план!\"\\n\\nТакже напомни, что можно:\\n• Присылать фото/скриншоты тренировок — бот их распознает\\n• Спрашивать статистику за любой период\\n\\n${JSON_FORMAT}\\nextracted: {\\n  \"race_distance\": \"...\",\\n  \"race_date\": \"YYYY-MM-DD\",\\n  \"target_time_seconds\": число|null,\\n  \"strategy_generated\": true,\\n  \"weeks_to_race\": число,\\n  \"max_hr\": ${maxHR},\\n  \"resting_hr\": ${restingHR}\\n}`;\n      nextStage = 'completed';\n      isStrategyGeneration = true;\n      break;\n  }\n} else {\n  // ============================================\n  // COMPLETED ONBOARDING — TRAINING MODE\n  // ============================================\n  const levelRu = userData.level === 'beginner' ? 'новичок' :\n                  userData.level === 'intermediate' ? 'любитель' : 'продвинутый';\n\n  const maxHR = userData.max_hr || (220 - userData.age);\n  const restingHR = userData.resting_hr || 60;\n  const hrReserve = maxHR - restingHR;\n\n  const zone1Max = Math.round(restingHR + hrReserve * 0.6);\n  const zone2Max = Math.round(restingHR + hrReserve * 0.7);\n  const zone3Max = Math.round(restingHR + hrReserve * 0.8);\n  const zone4Max = Math.round(restingHR + hrReserve * 0.9);\n\n  let paceStr = 'не указан';\n  let easyPace, tempoPace, longPace, intervalPace;\n\n  if (userData.current_5k_pace_seconds) {\n    const paceMin = Math.floor(userData.current_5k_pace_seconds / 60);\n    const paceSec = userData.current_5k_pace_seconds % 60;\n    paceStr = `${paceMin}:${paceSec.toString().padStart(2, '0')}/км`;\n\n    easyPace = userData.current_5k_pace_seconds + 60;\n    tempoPace = userData.current_5k_pace_seconds + 15;\n    longPace = easyPace + 15;\n    intervalPace = userData.current_5k_pace_seconds - 10;\n  } else {\n    easyPace = 420;\n    tempoPace = 360;\n    longPace = 450;\n    intervalPace = 330;\n  }\n\n  const formatPace = (sec) => `${Math.floor(sec/60)}:${(sec%60).toString().padStart(2,'0')}`;\n  const paceToSpeed = (sec) => (60 / (sec / 60)).toFixed(1);\n\n  let raceInfo = '';\n  if (userData.race_date) {\n    const distanceRu = {\n      '5k': '5 км', '10k': '10 км', 'half': 'полумарафон',\n      'marathon': 'марафон', 'ultra': 'ультра'\n    }[userData.race_distance] || userData.race_distance;\n    raceInfo = `\\nЦЕЛЬ: ${distanceRu}, ${userData.race_date}`;\n\n    const raceDate = new Date(userData.race_date);\n    const today = new Date();\n    const weeksLeft = Math.floor((raceDate - today) / (7 * 24 * 60 * 60 * 1000));\n    if (weeksLeft > 0) {\n      raceInfo += ` (${weeksLeft} нед. до старта)`;\n    }\n  }\n\n  const wantsPlan = /план|состав|давай|начн|готов|хочу|тренировк|недел/i.test(message);\n\n  if (wantsPlan) {\n    isPlanGeneration = true;\n\n    systemPrompt = `Ты AI-тренер для ${firstName}. НЕ здоровайся.\\n\\nПРОФИЛЬ:\\n• Уровень: ${levelRu}\\n• Возраст: ${userData.age} лет\\n• Темп 5км: ${paceStr}\\n• Тренировок/нед: ${userData.weekly_runs}${raceInfo}\\n\\nПУЛЬСОВЫЕ ЗОНЫ:\\n• Зона 1 (восстановление): до ${zone1Max} уд/мин\\n• Зона 2 (аэробная): ${zone1Max}-${zone2Max} уд/мин\\n• Зона 3 (темповая): ${zone2Max}-${zone3Max} уд/мин\\n• Зона 4 (пороговая): ${zone3Max}-${zone4Max} уд/мин\\n• Зона 5 (интервалы): ${zone4Max}+ уд/мин\\n\\nТЕМПЫ / СКОРОСТИ ДЛЯ ДОРОЖКИ:\\n• Лёгкий: ${formatPace(easyPace)}/км = ${paceToSpeed(easyPace)} км/ч\\n• Темповый: ${formatPace(tempoPace)}/км = ${paceToSpeed(tempoPace)} км/ч\\n• Длинный: ${formatPace(longPace)}/км = ${paceToSpeed(longPace)} км/ч\\n• Интервальный: ${formatPace(intervalPace)}/км = ${paceToSpeed(intervalPace)} км/ч\\n\\nЗАДАЧА: Составь план на неделю (${userData.weekly_runs} тренировок)\\n\\nФОРМАТ КАЖДОЙ ТРЕНИРОВКИ:\\nДень — Тип тренировки\\n\\nРАЗМИНКА (10-15 мин):\\n• 5-10 мин лёгкая трусца (зона 1-2)\\n• Динамическая растяжка\\n\\nОСНОВНАЯ ЧАСТЬ:\\n• Описание с указанием темпа/скорости И пульсовой зоны\\n• Для дорожки: точная скорость в км/ч\\n\\nЗАМИНКА (5-10 мин):\\n• 5 мин лёгкая трусца\\n• Растяжка\\n\\nПримечание (если нужно)\\n\\n---\\n\\nПРАВИЛА ПЛАНА:\\n• 80% тренировок в зонах 1-2 (лёгкие)\\n• Не более 2 интенсивных тренировок в неделю\\n• После тяжёлой тренировки — лёгкая или отдых\\n• Минимум 1 полный день отдыха\\n\\nИтого за неделю: X км\\n\\n${JSON_FORMAT}\\nextracted: {\"plan_generated\": true, \"total_km\": число, \"total_sessions\": ${userData.weekly_runs}}`;\n\n  } else {\n    let planContext = '';\n    if (activePlan && activePlan.plan_data) {\n      const planData = typeof activePlan.plan_data === 'string' ? JSON.parse(activePlan.plan_data) : activePlan.plan_data;\n      planContext = `\\n\\nАКТИВНЫЙ ПЛАН ТРЕНИРОВОК (${activePlan.week_start} - ${activePlan.week_end}):\\n${planData.raw_plan || JSON.stringify(planData)}`;\n    }\n\n    systemPrompt = `Ты AI-тренер для ${firstName}. НЕ здоровайся.\\n\\nПРОФИЛЬ: ${levelRu}, ${userData.age} лет, ${userData.weekly_runs} трен/нед${raceInfo}${planContext}\\n\\nПУЛЬСОВЫЕ ЗОНЫ:\\n• Зона 2 (основная): ${zone1Max}-${zone2Max} уд/мин\\n• Зона 3 (темпо): ${zone2Max}-${zone3Max} уд/мин\\n• Зона 4 (порог): ${zone3Max}-${zone4Max} уд/мин\\n\\nТЕМПЫ / СКОРОСТИ:\\n• Лёгкий: ${formatPace(easyPace)}/км = ${paceToSpeed(easyPace)} км/ч\\n• Темповый: ${formatPace(tempoPace)}/км = ${paceToSpeed(tempoPace)} км/ч\\n\\nСООБЩЕНИЕ: \"${message}\"\\n\\nВАЖНО:\\n• Отвечай в контексте подготовки к забегу\\n• Если вопрос про темп/скорость — ВСЕГДА давай и темп, и скорость для дорожки\\n• Если вопрос про пульс — объясняй через зоны\\n• Будь конкретным и практичным\\n\\n${JSON_FORMAT}\\nextracted: {}`;\n  }\n}\n\nreturn [{\n  json: {\n    user_id: userData.id,\n    chat_id: messageData.chat_id,\n    message_text: message,\n    message_id: messageData.message_id,\n    intent: intent,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    is_plan_generation: isPlanGeneration,\n    is_strategy_generation: isStrategyGeneration,\n    is_stats_request: isStatsRequest,\n    weekly_runs: userData.weekly_runs\n  }\n}];\n"
+      },
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1840, 500]
+    },
+    {
+      "id": "call-openai",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": {{ JSON.stringify($json.system_prompt) }}},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.message_text) }}}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
+      },
+      "name": "Call OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2040, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "koikxNcf4ds6vKgZ",
+          "name": "OpenAI - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "extract-response",
+      "parameters": {
+        "functionCode": "const response = items[0].json;\nconst prepareData = $('Prepare Data').first().json;\nconst aiContent = response.choices[0].message.content;\n\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {\n  responseText = aiContent;\n}\n\nresponseText = responseText\n  .replace(/\\*/g, '•')\n  .replace(/_/g, ' ')\n  .replace(/`/g, \"'\")\n  .replace(/\\[/g, '(')\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    message_id: prepareData.message_id,\n    user_message: prepareData.message_text,\n    intent: prepareData.intent,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    is_plan_generation: prepareData.is_plan_generation,\n    is_strategy_generation: prepareData.is_strategy_generation,\n    is_stats_request: prepareData.is_stats_request,\n    weekly_runs: prepareData.weekly_runs\n  }\n}];"
+      },
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2240, 500]
+    },
+    {
+      "id": "send-telegram",
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id.toString() }}",
+        "text": "={{ $json.response_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2440, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "is-onboarding",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extract Response').first().json.intent }}",
+              "rightValue": "onboarding",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Is Onboarding?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2640, 500]
+    },
+    {
+      "id": "build-update-data",
+      "parameters": {
+        "functionCode": "// RACE-ONLY Build Update Data v0.5.0\nconst data = $('Extract Response').first().json;\nconst extractedData = data.extracted_data || {};\n\nconst updateFields = {};\n\nlet actualNextStage = data.next_stage;\n\nif (data.onboarding_stage === 'started') {\n  updateFields.goal = 'race';\n}\n\nif (data.onboarding_stage === 'strategy_preview' && extractedData.strategy_generated) {\n  actualNextStage = 'completed';\n}\n\nif (actualNextStage && actualNextStage !== data.onboarding_stage) {\n  updateFields.onboarding_stage = actualNextStage;\n}\n\nif (extractedData.level) updateFields.level = extractedData.level;\nif (extractedData.age) updateFields.age = extractedData.age;\nif (extractedData.height_cm) updateFields.height_cm = extractedData.height_cm;\nif (extractedData.weight_kg) updateFields.weight_kg = extractedData.weight_kg;\nif (extractedData.current_5k_pace_seconds) updateFields.current_5k_pace_seconds = extractedData.current_5k_pace_seconds;\nif (extractedData.weekly_runs) updateFields.weekly_runs = extractedData.weekly_runs;\n\nif (extractedData.race_distance) updateFields.race_distance = extractedData.race_distance;\nif (extractedData.race_date) updateFields.race_date = extractedData.race_date;\nif (extractedData.target_time_seconds) updateFields.target_time_seconds = extractedData.target_time_seconds;\n\nif (extractedData.resting_hr) updateFields.resting_hr = extractedData.resting_hr;\nif (extractedData.max_hr) updateFields.max_hr = extractedData.max_hr;\nif (extractedData.has_lab_testing !== undefined) updateFields.has_lab_testing = extractedData.has_lab_testing;\nif (extractedData.vo2max) updateFields.vo2max = extractedData.vo2max;\nif (extractedData.lthr) updateFields.lthr = extractedData.lthr;\n\nif (extractedData.hr_zone1_max) updateFields.hr_zone1_max = extractedData.hr_zone1_max;\nif (extractedData.hr_zone2_max) updateFields.hr_zone2_max = extractedData.hr_zone2_max;\nif (extractedData.hr_zone3_max) updateFields.hr_zone3_max = extractedData.hr_zone3_max;\nif (extractedData.hr_zone4_max) updateFields.hr_zone4_max = extractedData.hr_zone4_max;\nif (extractedData.hr_zone5_max) updateFields.hr_zone5_max = extractedData.hr_zone5_max;\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0,\n    is_plan_generation: data.is_plan_generation || extractedData.plan_generated,\n    is_strategy_generation: data.is_strategy_generation || extractedData.strategy_generated,\n    plan_data: extractedData.plan_generated ? {\n      total_km: extractedData.total_km,\n      total_sessions: extractedData.total_sessions\n    } : null,\n    response_text: data.response_text,\n    weekly_runs: data.weekly_runs\n  }\n}];\n"
+      },
+      "name": "Build Update Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2840, 400]
+    },
+    {
+      "id": "has-updates",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.has_updates }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Has Updates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3040, 400]
+    },
+    {
+      "id": "update-user",
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "onboarding_stage",
+              "fieldValue": "={{ $json.update_fields.onboarding_stage }}"
+            },
+            {
+              "fieldId": "level",
+              "fieldValue": "={{ $json.update_fields.level }}"
+            },
+            {
+              "fieldId": "current_5k_pace_seconds",
+              "fieldValue": "={{ $json.update_fields.current_5k_pace_seconds }}"
+            },
+            {
+              "fieldId": "weekly_runs",
+              "fieldValue": "={{ $json.update_fields.weekly_runs }}"
+            },
+            {
+              "fieldId": "goal",
+              "fieldValue": "={{ $json.update_fields.goal }}"
+            },
+            {
+              "fieldId": "age",
+              "fieldValue": "={{ $json.update_fields.age }}"
+            },
+            {
+              "fieldId": "height_cm",
+              "fieldValue": "={{ $json.update_fields.height_cm }}"
+            },
+            {
+              "fieldId": "weight_kg",
+              "fieldValue": "={{ $json.update_fields.weight_kg }}"
+            },
+            {
+              "fieldId": "race_date",
+              "fieldValue": "={{ $json.update_fields.race_date }}"
+            },
+            {
+              "fieldId": "race_distance",
+              "fieldValue": "={{ $json.update_fields.race_distance }}"
+            },
+            {
+              "fieldId": "target_time_seconds",
+              "fieldValue": "={{ $json.update_fields.target_time_seconds }}"
+            },
+            {
+              "fieldId": "resting_hr",
+              "fieldValue": "={{ $json.update_fields.resting_hr }}"
+            },
+            {
+              "fieldId": "max_hr",
+              "fieldValue": "={{ $json.update_fields.max_hr }}"
+            },
+            {
+              "fieldId": "has_lab_testing",
+              "fieldValue": "={{ $json.update_fields.has_lab_testing }}"
+            },
+            {
+              "fieldId": "vo2max",
+              "fieldValue": "={{ $json.update_fields.vo2max }}"
+            },
+            {
+              "fieldId": "lthr",
+              "fieldValue": "={{ $json.update_fields.lthr }}"
+            },
+            {
+              "fieldId": "hr_zone1_max",
+              "fieldValue": "={{ $json.update_fields.hr_zone1_max }}"
+            },
+            {
+              "fieldId": "hr_zone2_max",
+              "fieldValue": "={{ $json.update_fields.hr_zone2_max }}"
+            },
+            {
+              "fieldId": "hr_zone3_max",
+              "fieldValue": "={{ $json.update_fields.hr_zone3_max }}"
+            },
+            {
+              "fieldId": "hr_zone4_max",
+              "fieldValue": "={{ $json.update_fields.hr_zone4_max }}"
+            },
+            {
+              "fieldId": "hr_zone5_max",
+              "fieldValue": "={{ $json.update_fields.hr_zone5_max }}"
+            }
+          ]
+        }
+      },
+      "name": "Update User Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3240, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "is-plan-generation",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Extract Response').first().json.is_plan_generation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "Is Plan Generation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2840, 600]
+    },
+    {
+      "id": "prepare-plan-data",
+      "parameters": {
+        "functionCode": "const extractResponse = $('Extract Response').first().json;\n\nif (!extractResponse.is_plan_generation) {\n  return [];\n}\n\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst monday = new Date(now);\nmonday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));\nmonday.setHours(0, 0, 0, 0);\n\nconst sunday = new Date(monday);\nsunday.setDate(monday.getDate() + 6);\n\nconst formatDate = (d) => d.toISOString().split('T')[0];\n\nconst responseText = extractResponse.response_text || '';\nconst extracted = extractResponse.extracted_data || {};\n\nconst planData = {\n  raw_plan: responseText,\n  generated_at: new Date().toISOString(),\n  total_km: extracted.total_km || null,\n  total_sessions: extracted.total_sessions || extractResponse.weekly_runs || 3\n};\n\nreturn [{\n  json: {\n    user_id: extractResponse.user_id,\n    week_start: formatDate(monday),\n    week_end: formatDate(sunday),\n    week_number: 1,\n    plan_data: planData,\n    total_distance_km: extracted.total_km || null,\n    total_sessions: extracted.total_sessions || 3,\n    status: 'active'\n  }\n}];"
+      },
+      "name": "Prepare Plan Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [3040, 600]
+    },
+    {
+      "id": "save-plan",
+      "parameters": {
+        "operation": "create",
+        "tableId": "weekly_plans",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.user_id }}"
+            },
+            {
+              "fieldId": "week_start",
+              "fieldValue": "={{ $json.week_start }}"
+            },
+            {
+              "fieldId": "week_end",
+              "fieldValue": "={{ $json.week_end }}"
+            },
+            {
+              "fieldId": "week_number",
+              "fieldValue": "={{ $json.week_number }}"
+            },
+            {
+              "fieldId": "plan_data",
+              "fieldValue": "={{ JSON.stringify($json.plan_data) }}"
+            },
+            {
+              "fieldId": "total_distance_km",
+              "fieldValue": "={{ $json.total_distance_km }}"
+            },
+            {
+              "fieldId": "total_sessions",
+              "fieldValue": "={{ $json.total_sessions }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [3240, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "save-user-message",
+      "parameters": {
+        "operation": "create",
+        "tableId": "chat_history",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Extract Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "role",
+              "fieldValue": "user"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $('Extract Response').first().json.user_message }}"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "={{ $('Extract Response').first().json.intent === 'onboarding' ? 'onboarding' : $('Extract Response').first().json.is_stats_request ? 'feedback' : 'general' }}"
+            },
+            {
+              "fieldId": "telegram_message_id",
+              "fieldValue": "={{ $('Extract Response').first().json.message_id }}"
+            }
+          ]
+        }
+      },
+      "name": "Save User Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2640, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "save-bot-response",
+      "parameters": {
+        "operation": "create",
+        "tableId": "chat_history",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Extract Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "role",
+              "fieldValue": "assistant"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $('Extract Response').first().json.response_text }}"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "={{ $('Extract Response').first().json.intent === 'onboarding' ? 'onboarding' : $('Extract Response').first().json.is_plan_generation ? 'planning' : $('Extract Response').first().json.is_stats_request ? 'feedback' : 'general' }}"
+            }
+          ]
+        }
+      },
+      "name": "Save Bot Response",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2840, 700],
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "TelegramTrigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "Get User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User": {
+      "main": [
+        [
+          {
+            "node": "Check User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check User": {
+      "main": [
+        [
+          {
+            "node": "Is Photo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Photo?": {
+      "main": [
+        [
+          {
+            "node": "Download Photo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "User Not Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Photo": {
+      "main": [
+        [
+          {
+            "node": "Prepare Image Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Image Data": {
+      "main": [
+        [
+          {
+            "node": "GPT-4o Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o Vision": {
+      "main": [
+        [
+          {
+            "node": "Parse Vision Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Vision Response": {
+      "main": [
+        [
+          {
+            "node": "Training Recognized?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Training Recognized?": {
+      "main": [
+        [
+          {
+            "node": "Save Photo Training",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Not Recognized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Photo Training": {
+      "main": [
+        [
+          {
+            "node": "Prepare Stats Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Stats Update": {
+      "main": [
+        [
+          {
+            "node": "Get User Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Stats": {
+      "main": [
+        [
+          {
+            "node": "Calculate Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Stats": {
+      "main": [
+        [
+          {
+            "node": "Stats Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stats Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge Stats",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Stats": {
+      "main": [
+        [
+          {
+            "node": "Format Photo Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Photo Response": {
+      "main": [
+        [
+          {
+            "node": "Send Photo Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Not Found?": {
+      "main": [
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Active Plan",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Recent Trainings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Plan": {
+      "main": [
+        [
+          {
+            "node": "Merge User & Plan & Trainings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Trainings": {
+      "main": [
+        [
+          {
+            "node": "Merge User & Plan & Trainings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge User & Plan & Trainings": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Get User Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Again": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Call OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Extract Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Response": {
+      "main": [
+        [
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Telegram": {
+      "main": [
+        [
+          {
+            "node": "Is Onboarding?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Plan Generation?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save User Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Onboarding?": {
+      "main": [
+        [
+          {
+            "node": "Build Update Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Build Update Data": {
+      "main": [
+        [
+          {
+            "node": "Has Updates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Updates?": {
+      "main": [
+        [
+          {
+            "node": "Update User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Is Plan Generation?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Plan Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Plan Data": {
+      "main": [
+        [
+          {
+            "node": "Save Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save User Message": {
+      "main": [
+        [
+          {
+            "node": "Save Bot Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
