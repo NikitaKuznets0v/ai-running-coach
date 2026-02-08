@@ -32,7 +32,7 @@
         {
             "id": "extract-message",
             "parameters": {
-                "functionCode": "const msg = items[0].json.message;\n\n// \u041e\u043f\u0440\u0435\u0434\u0435\u043b\u044f\u0435\u043c \u0442\u0438\u043f \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f\nlet messageType = 'text';\nlet photoFileId = null;\nlet photoCaption = '';\n\nif (msg.photo && msg.photo.length > 0) {\n  messageType = 'photo';\n  // \u0411\u0435\u0440\u0451\u043c \u0444\u043e\u0442\u043e \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u043e\u0433\u043e \u0440\u0430\u0437\u043c\u0435\u0440\u0430 (\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0435 \u0432 \u043c\u0430\u0441\u0441\u0438\u0432\u0435)\n  photoFileId = msg.photo[msg.photo.length - 1].file_id;\n  photoCaption = msg.caption || '';\n}\n\nreturn [{\n  json: {\n    telegram_id: msg.from.id,\n    chat_id: msg.chat.id,\n    username: msg.from.username || '',\n    first_name: msg.from.first_name || '\u0414\u0440\u0443\u0433',\n    last_name: msg.from.last_name || '',\n    message_text: msg.text || photoCaption || '',\n    message_id: msg.message_id,\n    message_type: messageType,\n    photo_file_id: photoFileId\n  }\n}];"
+                "functionCode": "const msg = items[0].json.message;\n\n// Определяем тип сообщения\nlet messageType = 'text';\nlet photoFileId = null;\nlet photoCaption = '';\n\nif (msg.photo && msg.photo.length > 0) {\n  messageType = 'photo';\n  // Берём фото максимального размера (последнее в массиве)\n  photoFileId = msg.photo[msg.photo.length - 1].file_id;\n  photoCaption = msg.caption || '';\n}\n\nreturn [{\n  json: {\n    telegram_id: msg.from.id,\n    chat_id: msg.chat.id,\n    username: msg.from.username || '',\n    first_name: msg.from.first_name || 'Друг',\n    last_name: msg.from.last_name || '',\n    message_text: msg.text || photoCaption || '',\n    message_id: msg.message_id,\n    message_type: messageType,\n    photo_file_id: photoFileId\n  }\n}];"
             },
             "name": "Extract Message",
             "type": "n8n-nodes-base.function",
@@ -165,7 +165,7 @@
         {
             "id": "parse-vision-response",
             "parameters": {
-                "functionCode": "const checkUserData = $('Check User').first().json;\nconst visionResponse = items[0].json;\nconst aiContent = visionResponse.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(aiContent);\n} catch (e) {\n  parsed = {\n    recognized: false,\n    response: '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0435 \u0444\u043e\u0442\u043e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439 \u0435\u0449\u0451 \u0440\u0430\u0437 \u0438\u043b\u0438 \u043d\u0430\u043f\u0438\u0448\u0438 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0442\u0435\u043a\u0441\u0442\u043e\u043c.'\n  };\n}\n\n// \u041e\u0447\u0438\u0449\u0430\u0435\u043c \u0442\u0435\u043a\u0441\u0442 \u0434\u043b\u044f Telegram\nlet responseText = parsed.response || '\u0424\u043e\u0442\u043e \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u0430\u043d\u043e';\nresponseText = responseText\n  .replace(/\\*/g, '\u2022')\n  .replace(/_/g, ' ')\n  .replace(/`/g, \"'\")\n  .replace(/\\[/g, '(')\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: checkUserData.user_id,\n    chat_id: checkUserData.chat_id,\n    message_id: checkUserData.message_id,\n    recognized: parsed.recognized || false,\n    confidence: parsed.confidence || 'low',\n    training_data: parsed.data || null,\n    source_app: parsed.source_app || null,\n    response_text: responseText,\n    is_photo_training: true\n  }\n}];"
+                "functionCode": "const checkUserData = $('Check User').first().json;\nconst visionResponse = items[0].json;\nconst aiContent = visionResponse.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(aiContent);\n} catch (e) {\n  parsed = {\n    recognized: false,\n    response: 'Ошибка при обработке фото. Попробуй ещё раз или напиши результат текстом.'\n  };\n}\n\n// Очищаем текст для Telegram\nlet responseText = parsed.response || 'Фото обработано';\nresponseText = responseText\n  .replace(/\\*/g, '•')\n  .replace(/_/g, ' ')\n  .replace(/`/g, \"'\")\n  .replace(/\\[/g, '(')\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: checkUserData.user_id,\n    chat_id: checkUserData.chat_id,\n    message_id: checkUserData.message_id,\n    recognized: parsed.recognized || false,\n    confidence: parsed.confidence || 'low',\n    training_data: parsed.data || null,\n    source_app: parsed.source_app || null,\n    response_text: responseText,\n    is_photo_training: true\n  }\n}];"
             },
             "name": "Parse Vision Response",
             "type": "n8n-nodes-base.function",
@@ -285,7 +285,7 @@
         {
             "id": "format-photo-response",
             "parameters": {
-                "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\nconst formatPace = (s) => {\n  if (!s) return '\u043d/\u0434';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '\ud83d\udcdd \u0422\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0430 \u0437\u0430\u043f\u0438\u0441\u0430\u043d\u0430!\\n\\n';\ntext += '\u2022 \u0414\u0438\u0441\u0442\u0430\u043d\u0446\u0438\u044f: ' + (td.distance_km || '\u043d/\u0434') + ' \u043a\u043c\\n';\ntext += '\u2022 \u0412\u0440\u0435\u043c\u044f: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' \u043c\u0438\u043d' : '\u043d/\u0434') + '\\n';\ntext += '\u2022 \u0422\u0435\u043c\u043f: ' + formatPace(td.avg_pace_seconds) + '/\u043a\u043c\\n';\nif (td.avg_heart_rate) text += '\u2022 \u041f\u0443\u043b\u044c\u0441: ' + td.avg_heart_rate + ' \u0443\u0434/\u043c\u0438\u043d\\n';\nif (td.calories) text += '\u2022 \u041a\u0430\u043b\u043e\u0440\u0438\u0438: ' + td.calories + '\\n';\nif (td.elevation_gain_m) text += '\u2022 \u041d\u0430\u0431\u043e\u0440 \u0432\u044b\u0441\u043e\u0442\u044b: ' + td.elevation_gain_m + ' \u043c\\n';\ntext += '\\n\ud83d\udcaa \u041e\u0442\u043b\u0438\u0447\u043d\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430!';\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
+                "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '📝 Тренировка записана!\\n\\n';\ntext += '• Дистанция: ' + (td.distance_km || 'н/д') + ' км\\n';\ntext += '• Время: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\ntext += '• Темп: ' + formatPace(td.avg_pace_seconds) + '/км\\n';\nif (td.avg_heart_rate) text += '• Пульс: ' + td.avg_heart_rate + ' уд/мин\\n';\nif (td.calories) text += '• Калории: ' + td.calories + '\\n';\nif (td.elevation_gain_m) text += '• Набор высоты: ' + td.elevation_gain_m + ' м\\n';\ntext += '\\n💪 Отличная работа!';\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
             },
             "name": "Format Photo Response",
             "type": "n8n-nodes-base.function",
@@ -552,13 +552,13 @@
         {
             "id": "merge-context",
             "parameters": {
-                "functionCode": "const checkUserData = $('Check User').first().json;\nconst planItems = $('Get Active Plan').all();\nconst trainingItems = items;\n\nlet activePlan = null;\nif (planItems.length > 0 && planItems[0].json && planItems[0].json.id) {\n  activePlan = planItems[0].json;\n}\n\nlet recentTrainings = [];\nif (trainingItems.length > 0) {\n  recentTrainings = trainingItems.map(t => t.json).filter(t => t && t.id);\n}\n\nreturn [{\n  json: {\n    ...checkUserData,\n    active_plan: activePlan,\n    recent_trainings: recentTrainings\n  }\n}];"
+                "functionCode": "const checkUserData = $('Check User').first().json;\nconst planItems = $('Get Active Plan').all();\nconst trainingItems = $('Get Recent Trainings').all();\nconst strategyItems = items;\n\nlet activePlan = null;\nif (planItems.length > 0 && planItems[0].json && planItems[0].json.id) {\n  activePlan = planItems[0].json;\n}\n\nlet recentTrainings = [];\nif (trainingItems.length > 0) {\n  recentTrainings = trainingItems.map(t => t.json).filter(t => t && t.id);\n}\n\nlet activeStrategy = null;\nif (strategyItems.length > 0 && strategyItems[0].json && strategyItems[0].json.id) {\n  activeStrategy = strategyItems[0].json;\n}\n\nreturn [{\n  json: {\n    ...checkUserData,\n    active_plan: activePlan,\n    recent_trainings: recentTrainings,\n    active_strategy: activeStrategy\n  }\n}];"
             },
             "name": "Merge Context",
             "type": "n8n-nodes-base.function",
             "typeVersion": 1,
             "position": [
-                2240,
+                2340,
                 600
             ]
         },
@@ -579,7 +579,7 @@
         {
             "id": "prepare-data",
             "parameters": {
-                "functionCode": "const data = items[0].json;\nconst message = data.message_text;\nconst stage = data.onboarding_stage || 'started';\nconst firstName = data.first_name || '\u0434\u0440\u0443\u0433';\n\nlet systemPrompt = '';\nlet nextStage = stage;\nlet isPlanGeneration = false;\n\nconst JSON_FORMAT = '\u041e\u0442\u0432\u0435\u0442\u044c JSON: {\"extracted\": {...}, \"response\": \"\u0442\u0435\u043a\u0441\u0442\"}. \u041d\u0415 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 * _ ` [ ]';\n\nconst formatPace = (sec) => {\n  if (!sec) return '\u043d/\u0434';\n  return Math.floor(sec/60) + ':' + (sec%60).toString().padStart(2,'0');\n};\n\n// \u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043e\u043a\nlet trainingsContext = '';\nconst trainings = data.recent_trainings || [];\nif (trainings.length > 0) {\n  trainingsContext = '\\n\\n\u0423 \u041f\u041e\u041b\u042c\u0417\u041e\u0412\u0410\u0422\u0415\u041b\u042f \u0415\u0421\u0422\u042c ' + trainings.length + ' \u0417\u0410\u041f\u0418\u0421\u0410\u041d\u041d\u042b\u0425 \u0422\u0420\u0415\u041d\u0418\u0420\u041e\u0412\u041e\u041a:\\n';\n  trainings.slice(0, 10).forEach(t => {\n    trainingsContext += '\u2022 ' + t.date + ': ' + (t.distance_km || '?') + ' \u043a\u043c';\n    if (t.duration_seconds) trainingsContext += ', ' + Math.round(t.duration_seconds/60) + ' \u043c\u0438\u043d';\n    if (t.avg_pace_seconds) trainingsContext += ', \u0442\u0435\u043c\u043f ' + formatPace(t.avg_pace_seconds) + '/\u043a\u043c';\n    if (t.avg_heart_rate) trainingsContext += ', \u043f\u0443\u043b\u044c\u0441 ' + t.avg_heart_rate;\n    if (t.type) trainingsContext += ' (' + t.type + ')';\n    trainingsContext += '\\n';\n  });\n} else {\n  trainingsContext = '\\n\\n\u0422\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043e\u043a \u043f\u043e\u043a\u0430 \u043d\u0435 \u0437\u0430\u043f\u0438\u0441\u0430\u043d\u043e.\\n';\n}\n\n// \u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u043f\u043b\u0430\u043d\u0430\nlet planContext = '';\nif (data.active_plan && data.active_plan.plan_data) {\n  try {\n    const pd = typeof data.active_plan.plan_data === 'string' ? JSON.parse(data.active_plan.plan_data) : data.active_plan.plan_data;\n    planContext = '\\n\u0410\u041a\u0422\u0418\u0412\u041d\u042b\u0419 \u041f\u041b\u0410\u041d: ' + (pd.raw_plan || '').substring(0, 500);\n  } catch(e) {}\n}\n\nif (stage !== 'completed') {\n  const prompts = {\n    'started': '\u041f\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0439 ' + firstName + '. \u041f\u0440\u0435\u0434\u0441\u0442\u0430\u0432\u044c\u0441\u044f AI-\u0442\u0440\u0435\u043d\u0435\u0440\u043e\u043c \u043f\u043e \u0431\u0435\u0433\u0443. \u0421\u043f\u0440\u043e\u0441\u0438 \u0443\u0440\u043e\u0432\u0435\u043d\u044c: \u043d\u043e\u0432\u0438\u0447\u043e\u043a/\u043b\u044e\u0431\u0438\u0442\u0435\u043b\u044c/\u043f\u0440\u043e\u0434\u0432\u0438\u043d\u0443\u0442\u044b\u0439. ' + JSON_FORMAT,\n    'profile': '\u041e\u043f\u0440\u0435\u0434\u0435\u043b\u0438 level: beginner/intermediate/advanced. \u0421\u043f\u0440\u043e\u0441\u0438 \u0432\u043e\u0437\u0440\u0430\u0441\u0442. ' + JSON_FORMAT + ' extracted: {level: ...}',\n    'physical': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 age. \u0421\u043f\u0440\u043e\u0441\u0438 \u0440\u043e\u0441\u0442 \u0438 \u0432\u0435\u0441. ' + JSON_FORMAT + ' extracted: {age: \u0447\u0438\u0441\u043b\u043e}',\n    'heart_rate': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 height_cm, weight_kg. \u0421\u043f\u0440\u043e\u0441\u0438 \u043f\u0443\u043b\u044c\u0441 \u043f\u043e\u043a\u043e\u044f. ' + JSON_FORMAT + ' extracted: {height_cm, weight_kg}',\n    'running_info': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 resting_hr. \u0421\u043f\u0440\u043e\u0441\u0438 \u0442\u0435\u043c\u043f \u043d\u0430 5\u043a\u043c. ' + JSON_FORMAT + ' extracted: {resting_hr}',\n    'lab_testing': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 current_5k_pace_seconds (\u0442\u0435\u043c\u043f \u0432 \u0441\u0435\u043a/\u043a\u043c). \u0421\u043f\u0440\u043e\u0441\u0438 \u043f\u0440\u043e VO2max \u0442\u0435\u0441\u0442. ' + JSON_FORMAT + ' extracted: {current_5k_pace_seconds}',\n    'training_freq': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 has_lab_testing. \u0421\u043f\u0440\u043e\u0441\u0438 \u0434\u043d\u0435\u0439 \u0432 \u043d\u0435\u0434\u0435\u043b\u044e (3-6). ' + JSON_FORMAT + ' extracted: {has_lab_testing, vo2max?, lthr?}',\n    'race_details': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 weekly_runs. \u0421\u043f\u0440\u043e\u0441\u0438 \u0434\u0438\u0441\u0442\u0430\u043d\u0446\u0438\u044e \u0437\u0430\u0431\u0435\u0433\u0430, \u0434\u0430\u0442\u0443, \u0446\u0435\u043b\u044c. ' + JSON_FORMAT + ' extracted: {weekly_runs}',\n    'strategy_preview': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 race_distance (5k/10k/half/marathon), race_date (YYYY-MM-DD), target_time_seconds. \u0421\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0439 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u044e. ' + JSON_FORMAT + ' extracted: {race_distance, race_date, strategy_generated: true}'\n  };\n  systemPrompt = prompts[stage] || prompts['started'];\n  const nextStages = {started:'profile', profile:'physical', physical:'heart_rate', heart_rate:'running_info', running_info:'lab_testing', lab_testing:'training_freq', training_freq:'race_details', race_details:'strategy_preview', strategy_preview:'completed'};\n  nextStage = nextStages[stage] || stage;\n} else {\n  if (/\u043f\u043b\u0430\u043d|\u0441\u043e\u0441\u0442\u0430\u0432|\u0434\u0430\u0432\u0430\u0439|\u043d\u0430\u0447\u043d|\u0433\u043e\u0442\u043e\u0432|\u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a|\u043d\u0435\u0434\u0435\u043b/i.test(message)) {\n    isPlanGeneration = true;\n    systemPrompt = 'AI-\u0442\u0440\u0435\u043d\u0435\u0440 \u0434\u043b\u044f ' + firstName + '. \u0421\u043e\u0441\u0442\u0430\u0432\u044c \u043f\u043b\u0430\u043d \u043d\u0430 \u043d\u0435\u0434\u0435\u043b\u044e (' + (data.weekly_runs || 3) + ' \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043e\u043a).' + trainingsContext + planContext + ' ' + JSON_FORMAT + ' extracted: {plan_generated: true, total_km: \u0447\u0438\u0441\u043b\u043e}';\n  } else {\n    systemPrompt = '\u0422\u044b AI-\u0442\u0440\u0435\u043d\u0435\u0440 \u043f\u043e \u0431\u0435\u0433\u0443 \u0434\u043b\u044f ' + firstName + '. \u041d\u0415 \u0437\u0434\u043e\u0440\u043e\u0432\u0430\u0439\u0441\u044f.' + trainingsContext + planContext + '\\n\\n\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0441\u043f\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442: \"' + message + '\"\\n\\n\u041f\u0420\u0410\u0412\u0418\u041b\u0410 \u041e\u0422\u0412\u0415\u0422\u0410:\\n1. \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0414\u0410\u041d\u041d\u042b\u0415 \u0422\u0420\u0415\u041d\u0418\u0420\u041e\u0412\u041e\u041a \u0432\u044b\u0448\u0435 \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u0430\\n2. \u0415\u0441\u043b\u0438 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0441\u043f\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442 \"\u043a\u0430\u043a \u043f\u043e\u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u0430\u043b\u0441\u044f\" \u2014 \u0440\u0430\u0441\u0441\u043a\u0430\u0436\u0438 \u043e \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0439 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0435 \u0438\u0437 \u0441\u043f\u0438\u0441\u043a\u0430\\n3. \u0411\u0443\u0434\u044c \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u043c: \u0443\u043a\u0430\u0437\u044b\u0432\u0430\u0439 \u0446\u0438\u0444\u0440\u044b \u0438\u0437 \u0434\u0430\u043d\u043d\u044b\u0445\\n4. \u0414\u0430\u0439 \u043a\u0440\u0430\u0442\u043a\u0443\u044e \u043e\u0446\u0435\u043d\u043a\u0443 \u0438 \u0441\u043e\u0432\u0435\u0442 \u043a\u0430\u043a \u0442\u0440\u0435\u043d\u0435\u0440\\n\\n' + JSON_FORMAT;\n  }\n}\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    message_text: message,\n    message_id: data.message_id,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    is_plan_generation: isPlanGeneration,\n    weekly_runs: data.weekly_runs\n  }\n}];"
+                "functionCode": "const data = items[0].json;\nconst message = data.message_text;\nconst stage = data.onboarding_stage || 'started';\nconst firstName = data.first_name || 'друг';\n\nlet systemPrompt = '';\nlet nextStage = stage;\nlet isPlanGeneration = false;\n\nconst JSON_FORMAT = 'Ответь JSON: {\"extracted\": {...}, \"response\": \"текст\"}. НЕ используй * _ ` [ ]';\n\nconst formatPace = (sec) => {\n  if (!sec) return 'н/д';\n  return Math.floor(sec/60) + ':' + (sec%60).toString().padStart(2,'0');\n};\n\n// Контекст тренировок\nlet trainingsContext = '';\nconst trainings = data.recent_trainings || [];\nif (trainings.length > 0) {\n  trainingsContext = '\\n\\nУ ПОЛЬЗОВАТЕЛЯ ЕСТЬ ' + trainings.length + ' ЗАПИСАННЫХ ТРЕНИРОВОК:\\n';\n  trainings.slice(0, 10).forEach(t => {\n    trainingsContext += '• ' + t.date + ': ' + (t.distance_km || '?') + ' км';\n    if (t.duration_seconds) trainingsContext += ', ' + Math.round(t.duration_seconds/60) + ' мин';\n    if (t.avg_pace_seconds) trainingsContext += ', темп ' + formatPace(t.avg_pace_seconds) + '/км';\n    if (t.avg_heart_rate) trainingsContext += ', пульс ' + t.avg_heart_rate;\n    if (t.type) trainingsContext += ' (' + t.type + ')';\n    trainingsContext += '\\n';\n  });\n} else {\n  trainingsContext = '\\n\\nТренировок пока не записано.\\n';\n}\n\n// Контекст плана\nlet planContext = '';\nif (data.active_plan && data.active_plan.plan_data) {\n  try {\n    const pd = typeof data.active_plan.plan_data === 'string' ? JSON.parse(data.active_plan.plan_data) : data.active_plan.plan_data;\n    planContext = '\\nАКТИВНЫЙ ПЛАН: ' + (pd.raw_plan || '').substring(0, 500);\n  } catch(e) {}\n}\n\n// Контекст стратегии\nlet strategyContext = '';\nlet currentPhase = null;\nif (data.active_strategy && data.active_strategy.phases) {\n  try {\n    const strategy = data.active_strategy;\n    const phases = typeof strategy.phases === 'string' ? JSON.parse(strategy.phases) : strategy.phases;\n    const startDate = new Date(strategy.start_date);\n    const now = new Date();\n    const weeksSinceStart = Math.max(1, Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000)));\n\n    for (const phase of phases) {\n      if (weeksSinceStart >= phase.start_week && weeksSinceStart <= phase.end_week) {\n        currentPhase = phase;\n        break;\n      }\n    }\n\n    strategyContext = '\\n\\nСТРАТЕГИЯ ПОДГОТОВКИ:';\n    strategyContext += '\\n• Цель: ' + (strategy.race_distance || '') + (strategy.race_date ? ' (' + strategy.race_date + ')' : '');\n    strategyContext += '\\n• Всего недель: ' + strategy.total_weeks + ', текущая неделя: ' + weeksSinceStart;\n    if (currentPhase) {\n      strategyContext += '\\n• Текущая фаза: ' + currentPhase.display_name + ' (нед. ' + currentPhase.start_week + '-' + currentPhase.end_week + ')';\n      strategyContext += '\\n• Фокус: ' + currentPhase.focus;\n      strategyContext += '\\n• Объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км/нед';\n      strategyContext += '\\n• Ключевые тренировки: ' + (currentPhase.key_workouts || []).join(', ');\n    }\n    strategyContext += '\\n• Все фазы: ';\n    phases.forEach(p => {\n      const isCurrent = (currentPhase && p.name === currentPhase.name) ? ' [ТЕКУЩАЯ]' : '';\n      strategyContext += p.display_name + ' (нед.' + p.start_week + '-' + p.end_week + ')' + isCurrent + ', ';\n    });\n    strategyContext += '\\n';\n  } catch(e) {\n    strategyContext = '';\n  }\n}\n\nif (stage !== 'completed') {\n  // Данные профиля для контекста\n  const profileInfo = 'Данные пользователя: '\n    + (data.race_distance ? 'дистанция=' + data.race_distance + ', ' : '')\n    + (data.race_date ? 'дата=' + data.race_date + ', ' : '')\n    + (data.target_time_seconds ? 'цель=' + data.target_time_seconds + 'сек, ' : '')\n    + (data.weekly_runs ? 'тренировок/нед=' + data.weekly_runs + ', ' : '')\n    + (data.level ? 'уровень=' + data.level : '');\n\n  const prompts = {\n    'started': 'Приветствуй ' + firstName + '. Представься AI-тренером по бегу. Спроси уровень: новичок/любитель/продвинутый. ' + JSON_FORMAT,\n    'profile': 'Определи level: beginner/intermediate/advanced. Спроси возраст. ' + JSON_FORMAT + ' extracted: {level: ...}',\n    'physical': 'Извлеки age. Спроси рост и вес. ' + JSON_FORMAT + ' extracted: {age: число}',\n    'heart_rate': 'Извлеки height_cm, weight_kg. Спроси пульс покоя. ' + JSON_FORMAT + ' extracted: {height_cm, weight_kg}',\n    'running_info': 'Извлеки resting_hr. Спроси темп на 5км. ' + JSON_FORMAT + ' extracted: {resting_hr}',\n    'lab_testing': 'Извлеки current_5k_pace_seconds (темп в сек/км). Спроси про VO2max тест. ' + JSON_FORMAT + ' extracted: {current_5k_pace_seconds}',\n    'training_freq': 'Извлеки has_lab_testing. Спроси дней в неделю (3-6). ' + JSON_FORMAT + ' extracted: {has_lab_testing, vo2max?, lthr?}',\n    'race_details': 'Извлеки weekly_runs (число). Также если пользователь указал дистанцию/дату/цель забега - извлеки их тоже. '\n      + 'Спроси дистанцию забега, дату, целевое время. '\n      + 'В конце ответа скажи: \"Отлично! Сейчас составлю стратегию подготовки!\" '\n      + JSON_FORMAT + ' extracted: {weekly_runs, race_distance: 5k/10k/half/marathon, race_date: YYYY-MM-DD, target_time_seconds: число}',\n    'strategy_preview': profileInfo + '\\n\\n'\n      + 'ИСПОЛЬЗУЙ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ВЫШЕ. Если в сообщении есть новые данные - используй их.\\n\\n'\n      + 'СГЕНЕРИРУЙ СТРАТЕГИЮ ПОДГОТОВКИ К ЗАБЕГУ.\\n\\n'\n      + 'ИНСТРУКЦИИ:\\n'\n      + '1. Рассчитай количество недель от сегодня (' + new Date().toISOString().split('T')[0] + ') до даты забега\\n'\n      + '2. Раздели подготовку на 4 фазы:\\n'\n      + '   - base (Базовый период): ~30% недель\\n'\n      + '   - development (Развитие): ~30% недель\\n'\n      + '   - specialization (Специализация): ~25% недель\\n'\n      + '   - taper (Подводка): ~15% недель (мин 1, макс 3)\\n'\n      + '3. Для каждой фазы рассчитай: start_week, end_week, duration_weeks, focus, target_weekly_km_min, target_weekly_km_max, key_workouts, intensity_distribution\\n\\n'\n      + 'ФОРМАТ ОТВЕТА В response (СТРОГО СОБЛЮДАЙ):\\n'\n      + 'Покажи ТОЛЬКО высокоуровневый обзор стратегии по фазам.\\n'\n      + 'НЕ ПОКАЗЫВАЙ детальный план на неделю! НЕ расписывай тренировки по дням!\\n'\n      + 'Формат ответа:\\n\\n'\n      + 'Стратегия подготовки к (дистанция) (дата забега)\\n'\n      + 'Всего N недель подготовки\\n\\n'\n      + 'Фаза 1: Название (недели X-Y, Z недель)\\n'\n      + 'Фокус: описание в 1 предложении\\n'\n      + 'Объём: XX-YY км/нед\\n'\n      + 'Ключевые тренировки: перечислить кратко\\n\\n'\n      + 'Фаза 2: ...\\n'\n      + '(и так далее для каждой фазы)\\n\\n'\n      + 'В самом конце напиши: Начинаем? Если стратегия подходит, скажи и я составлю план на первую неделю!\\n\\n'\n      + 'НЕ используй символы форматирования. Используй простые тире для списков.\\n\\n'\n      + JSON_FORMAT + '\\n'\n      + 'extracted: { race_distance: \"' + (data.race_distance || 'half') + '\", race_date: \"' + (data.race_date || new Date(Date.now() + 16*7*24*60*60*1000).toISOString().split('T')[0]) + '\", target_time_seconds: ' + (data.target_time_seconds || 6300) + ', strategy_generated: true, total_weeks: число, strategy_summary: \"краткое описание\", phases: [{name, display_name, start_week, end_week, duration_weeks, focus, target_weekly_km_min, target_weekly_km_max, key_workouts: [\"тренировка1\", \"тренировка2\"], intensity_distribution: \"80/20 или подобное\"}] }'\n  };\n  systemPrompt = prompts[stage] || prompts['started'];\n  const nextStages = {started:'profile', profile:'physical', physical:'heart_rate', heart_rate:'running_info', running_info:'lab_testing', lab_testing:'training_freq', training_freq:'race_details', race_details:'strategy_preview', strategy_preview:'completed'};\n  nextStage = nextStages[stage] || stage;\n} else {\n  const isStrategyQuestion = /стратег|фаз[аыуеи]|период|этап подготовки|план подготовки|как.*иду|долгосроч|подготов.*забег/i.test(message);\n\n  if (isStrategyQuestion && data.active_strategy) {\n    systemPrompt = 'Ты AI-тренер по бегу для ' + firstName + '. НЕ здоровайся.'\n      + strategyContext + trainingsContext + planContext\n      + '\\n\\nПользователь спрашивает о стратегии: \"' + message + '\"'\n      + '\\n\\nОтветь подробно о текущей фазе, прогрессе и что впереди.'\n      + '\\n\\n' + JSON_FORMAT;\n  } else if (/план|состав|давай|начн|готов|тренировк|недел/i.test(message)) {\n    isPlanGeneration = true;\n    systemPrompt = 'AI-тренер для ' + firstName + '. Составь план на неделю (' + (data.weekly_runs || 3) + ' тренировок).'\n      + strategyContext + trainingsContext + planContext\n      + (currentPhase ? '\\n\\nВАЖНО: План должен соответствовать ТЕКУЩЕЙ ФАЗЕ: ' + currentPhase.display_name + '. Фокус: ' + currentPhase.focus + '. Объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км.' : '')\n      + ' ' + JSON_FORMAT + ' extracted: {plan_generated: true, total_km: число}';\n  } else {\n    systemPrompt = 'Ты AI-тренер по бегу для ' + firstName + '. НЕ здоровайся.'\n      + strategyContext + trainingsContext + planContext\n      + '\\n\\nПользователь спрашивает: \"' + message + '\"'\n      + '\\n\\nПРАВИЛА ОТВЕТА:\\n1. Используй ДАННЫЕ ТРЕНИРОВОК выше'\n      + '\\n2. Если есть стратегия - учитывай текущую фазу'\n      + '\\n3. Будь конкретным: указывай цифры'\n      + '\\n4. Дай краткую оценку и совет'\n      + '\\n\\n' + JSON_FORMAT;\n  }\n}\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    message_text: message,\n    message_id: data.message_id,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    is_plan_generation: isPlanGeneration,\n    weekly_runs: data.weekly_runs\n  }\n}];"
             },
             "name": "Prepare Data",
             "type": "n8n-nodes-base.function",
@@ -617,7 +617,7 @@
         {
             "id": "extract-response",
             "parameters": {
-                "functionCode": "const response = items[0].json;\nconst prepareData = $('Prepare Data').first().json;\nconst aiContent = response.choices[0].message.content;\n\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {}\n\nresponseText = responseText.replace(/\\*/g, '\u2022').replace(/_/g, ' ').replace(/`/g, \"'\").replace(/\\[/g, '(').replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    is_plan_generation: prepareData.is_plan_generation,\n    weekly_runs: prepareData.weekly_runs\n  }\n}];"
+                "functionCode": "const response = items[0].json;\nconst prepareData = $('Prepare Data').first().json;\nconst aiContent = response.choices[0].message.content;\n\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {}\n\nresponseText = responseText.replace(/\\*\\*(.+?)\\*\\*/g, '$1').replace(/\\*(.+?)\\*/g, '$1').replace(/_/g, ' ').replace(/`/g, \"'\").replace(/\\[/g, '(').replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    is_plan_generation: prepareData.is_plan_generation,\n    weekly_runs: prepareData.weekly_runs\n  }\n}];"
             },
             "name": "Extract Response",
             "type": "n8n-nodes-base.function",
@@ -662,7 +662,7 @@
                     "conditions": [
                         {
                             "id": "c1",
-                            "leftValue": "={{ $json.onboarding_stage }}",
+                            "leftValue": "={{ $('Extract Response').first().json.onboarding_stage }}",
                             "rightValue": "completed",
                             "operator": {
                                 "type": "string",
@@ -684,7 +684,7 @@
         {
             "id": "build-update",
             "parameters": {
-                "functionCode": "const data = items[0].json;\nconst ext = data.extracted_data || {};\nconst updateFields = {};\nlet nextStage = data.next_stage;\n\nif (data.onboarding_stage === 'started') updateFields.goal = 'race';\nif (data.onboarding_stage === 'strategy_preview' && ext.strategy_generated) nextStage = 'completed';\nif (nextStage && nextStage !== data.onboarding_stage) updateFields.onboarding_stage = nextStage;\n\n['level','age','height_cm','weight_kg','current_5k_pace_seconds','weekly_runs','race_distance','race_date','target_time_seconds','resting_hr','max_hr','has_lab_testing','vo2max','lthr'].forEach(k => { if (ext[k] !== undefined) updateFields[k] = ext[k]; });\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0\n  }\n}];"
+                "functionCode": "const data = $('Extract Response').first().json;\nconst ext = data.extracted_data || {};\nconst updateFields = {};\nlet nextStage = data.next_stage;\n\nif (data.onboarding_stage === 'started') updateFields.goal = 'race';\nif (data.onboarding_stage === 'strategy_preview' && ext.strategy_generated) nextStage = 'completed';\nif (nextStage && nextStage !== data.onboarding_stage) updateFields.onboarding_stage = nextStage;\n\n['level','age','height_cm','weight_kg','current_5k_pace_seconds','weekly_runs','race_distance','race_date','target_time_seconds','resting_hr','max_hr','has_lab_testing','vo2max','lthr'].forEach(k => { if (ext[k] !== undefined) updateFields[k] = ext[k]; });\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0,\n    is_strategy_stage: data.onboarding_stage === 'strategy_preview' && ext.strategy_generated === true\n  }\n}];"
             },
             "name": "Build Update Data",
             "type": "n8n-nodes-base.function",
@@ -922,7 +922,7 @@
                 "nodeCredentialType": "openAiApi",
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"\u0420\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u0439 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0443 \u0441 \u0444\u043e\u0442\u043e. \u0412\u0435\u0440\u043d\u0438 JSON: {\\\"recognized\\\": true/false, \\\"data\\\": {\\\"distance_km\\\": \u0447\u0438\u0441\u043b\u043e, \\\"duration_seconds\\\": \u0447\u0438\u0441\u043b\u043e, \\\"avg_pace_seconds\\\": \u0447\u0438\u0441\u043b\u043e, \\\"avg_heart_rate\\\": \u0447\u0438\u0441\u043b\u043e \u0438\u043b\u0438 null, \\\"type\\\": \\\"easy_run\\\"/\\\"tempo\\\"/\\\"intervals\\\"}, \\\"response\\\": \\\"\u0442\u0435\u043a\u0441\u0442\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:{{ $json.mime_type }};base64,{{ $json.base64_image }}\"\n          }\n        },\n        {\n          \"type\": \"text\", \n          \"text\": \"\u0420\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u0439 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0443\"\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
+                "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Распознай тренировку с фото. Верни JSON: {\\\"recognized\\\": true/false, \\\"data\\\": {\\\"distance_km\\\": число, \\\"duration_seconds\\\": число, \\\"avg_pace_seconds\\\": число, \\\"avg_heart_rate\\\": число или null, \\\"type\\\": \\\"easy_run\\\"/\\\"tempo\\\"/\\\"intervals\\\"}, \\\"response\\\": \\\"текст\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:{{ $json.mime_type }};base64,{{ $json.base64_image }}\"\n          }\n        },\n        {\n          \"type\": \"text\", \n          \"text\": \"Распознай тренировку\"\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
             },
             "name": "GPT-4o Vision",
             "type": "n8n-nodes-base.httpRequest",
@@ -935,6 +935,148 @@
                 "openAiApi": {
                     "id": "koikxNcf4ds6vKgZ",
                     "name": "OpenAI - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "get-strategy",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "training_strategies",
+                "returnAll": false,
+                "limit": 1,
+                "filterType": "manual",
+                "matchType": "allFilters",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "user_id",
+                            "condition": "eq",
+                            "keyValue": "={{ $('Check User').first().json.user_id }}"
+                        },
+                        {
+                            "keyName": "status",
+                            "condition": "eq",
+                            "keyValue": "active"
+                        }
+                    ]
+                },
+                "options": {
+                    "orderByColumn": "created_at",
+                    "orderType": "desc"
+                }
+            },
+            "name": "Get Strategy",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                2140,
+                600
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "is-strategy-stage",
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "strategy-check",
+                            "leftValue": "={{ $('Build Update Data').first().json.is_strategy_stage }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                }
+            },
+            "name": "Is Strategy Stage?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                4240,
+                300
+            ]
+        },
+        {
+            "id": "save-strategy",
+            "parameters": {
+                "operation": "create",
+                "tableId": "training_strategies",
+                "dataToSend": "defineBelow",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "user_id",
+                            "fieldValue": "={{ $('Extract Response').first().json.user_id }}"
+                        },
+                        {
+                            "fieldId": "goal_type",
+                            "fieldValue": "race"
+                        },
+                        {
+                            "fieldId": "race_distance",
+                            "fieldValue": "={{ $('Extract Response').first().json.extracted_data.race_distance }}"
+                        },
+                        {
+                            "fieldId": "race_date",
+                            "fieldValue": "={{ $('Extract Response').first().json.extracted_data.race_date }}"
+                        },
+                        {
+                            "fieldId": "target_time_seconds",
+                            "fieldValue": "={{ $('Extract Response').first().json.extracted_data.target_time_seconds }}"
+                        },
+                        {
+                            "fieldId": "total_weeks",
+                            "fieldValue": "={{ $('Extract Response').first().json.extracted_data.total_weeks }}"
+                        },
+                        {
+                            "fieldId": "phases",
+                            "fieldValue": "={{ JSON.stringify($('Extract Response').first().json.extracted_data.phases) }}"
+                        },
+                        {
+                            "fieldId": "summary",
+                            "fieldValue": "={{ $('Extract Response').first().json.extracted_data.strategy_summary }}"
+                        },
+                        {
+                            "fieldId": "start_date",
+                            "fieldValue": "={{ $now.format('yyyy-MM-dd') }}"
+                        },
+                        {
+                            "fieldId": "end_date",
+                            "fieldValue": "={{ $('Extract Response').first().json.extracted_data.race_date }}"
+                        },
+                        {
+                            "fieldId": "status",
+                            "fieldValue": "active"
+                        }
+                    ]
+                }
+            },
+            "name": "Save Strategy",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                4440,
+                200
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
                 }
             }
         }
@@ -1152,7 +1294,7 @@
             "main": [
                 [
                     {
-                        "node": "Merge Context",
+                        "node": "Get Strategy",
                         "type": "main",
                         "index": 0
                     }
@@ -1309,6 +1451,40 @@
                     }
                 ]
             ]
+        },
+        "Get Strategy": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Context",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Update User Profile": {
+            "main": [
+                [
+                    {
+                        "node": "Is Strategy Stage?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Is Strategy Stage?": {
+            "main": [
+                [
+                    {
+                        "node": "Save Strategy",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
         }
     },
     "settings": {
@@ -1404,7 +1580,7 @@
             {
                 "id": "extract-message",
                 "parameters": {
-                    "functionCode": "const msg = items[0].json.message;\n\n// \u041e\u043f\u0440\u0435\u0434\u0435\u043b\u044f\u0435\u043c \u0442\u0438\u043f \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u044f\nlet messageType = 'text';\nlet photoFileId = null;\nlet photoCaption = '';\n\nif (msg.photo && msg.photo.length > 0) {\n  messageType = 'photo';\n  // \u0411\u0435\u0440\u0451\u043c \u0444\u043e\u0442\u043e \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u043e\u0433\u043e \u0440\u0430\u0437\u043c\u0435\u0440\u0430 (\u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0435 \u0432 \u043c\u0430\u0441\u0441\u0438\u0432\u0435)\n  photoFileId = msg.photo[msg.photo.length - 1].file_id;\n  photoCaption = msg.caption || '';\n}\n\nreturn [{\n  json: {\n    telegram_id: msg.from.id,\n    chat_id: msg.chat.id,\n    username: msg.from.username || '',\n    first_name: msg.from.first_name || '\u0414\u0440\u0443\u0433',\n    last_name: msg.from.last_name || '',\n    message_text: msg.text || photoCaption || '',\n    message_id: msg.message_id,\n    message_type: messageType,\n    photo_file_id: photoFileId\n  }\n}];"
+                    "functionCode": "const msg = items[0].json.message;\n\n// Определяем тип сообщения\nlet messageType = 'text';\nlet photoFileId = null;\nlet photoCaption = '';\n\nif (msg.photo && msg.photo.length > 0) {\n  messageType = 'photo';\n  // Берём фото максимального размера (последнее в массиве)\n  photoFileId = msg.photo[msg.photo.length - 1].file_id;\n  photoCaption = msg.caption || '';\n}\n\nreturn [{\n  json: {\n    telegram_id: msg.from.id,\n    chat_id: msg.chat.id,\n    username: msg.from.username || '',\n    first_name: msg.from.first_name || 'Друг',\n    last_name: msg.from.last_name || '',\n    message_text: msg.text || photoCaption || '',\n    message_id: msg.message_id,\n    message_type: messageType,\n    photo_file_id: photoFileId\n  }\n}];"
                 },
                 "name": "Extract Message",
                 "type": "n8n-nodes-base.function",
@@ -1537,7 +1713,7 @@
             {
                 "id": "parse-vision-response",
                 "parameters": {
-                    "functionCode": "const checkUserData = $('Check User').first().json;\nconst visionResponse = items[0].json;\nconst aiContent = visionResponse.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(aiContent);\n} catch (e) {\n  parsed = {\n    recognized: false,\n    response: '\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0435 \u0444\u043e\u0442\u043e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439 \u0435\u0449\u0451 \u0440\u0430\u0437 \u0438\u043b\u0438 \u043d\u0430\u043f\u0438\u0448\u0438 \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 \u0442\u0435\u043a\u0441\u0442\u043e\u043c.'\n  };\n}\n\n// \u041e\u0447\u0438\u0449\u0430\u0435\u043c \u0442\u0435\u043a\u0441\u0442 \u0434\u043b\u044f Telegram\nlet responseText = parsed.response || '\u0424\u043e\u0442\u043e \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u0430\u043d\u043e';\nresponseText = responseText\n  .replace(/\\*/g, '\u2022')\n  .replace(/_/g, ' ')\n  .replace(/`/g, \"'\")\n  .replace(/\\[/g, '(')\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: checkUserData.user_id,\n    chat_id: checkUserData.chat_id,\n    message_id: checkUserData.message_id,\n    recognized: parsed.recognized || false,\n    confidence: parsed.confidence || 'low',\n    training_data: parsed.data || null,\n    source_app: parsed.source_app || null,\n    response_text: responseText,\n    is_photo_training: true\n  }\n}];"
+                    "functionCode": "const checkUserData = $('Check User').first().json;\nconst visionResponse = items[0].json;\nconst aiContent = visionResponse.choices[0].message.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(aiContent);\n} catch (e) {\n  parsed = {\n    recognized: false,\n    response: 'Ошибка при обработке фото. Попробуй ещё раз или напиши результат текстом.'\n  };\n}\n\n// Очищаем текст для Telegram\nlet responseText = parsed.response || 'Фото обработано';\nresponseText = responseText\n  .replace(/\\*/g, '•')\n  .replace(/_/g, ' ')\n  .replace(/`/g, \"'\")\n  .replace(/\\[/g, '(')\n  .replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: checkUserData.user_id,\n    chat_id: checkUserData.chat_id,\n    message_id: checkUserData.message_id,\n    recognized: parsed.recognized || false,\n    confidence: parsed.confidence || 'low',\n    training_data: parsed.data || null,\n    source_app: parsed.source_app || null,\n    response_text: responseText,\n    is_photo_training: true\n  }\n}];"
                 },
                 "name": "Parse Vision Response",
                 "type": "n8n-nodes-base.function",
@@ -1657,7 +1833,7 @@
             {
                 "id": "format-photo-response",
                 "parameters": {
-                    "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\nconst formatPace = (s) => {\n  if (!s) return '\u043d/\u0434';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '\ud83d\udcdd \u0422\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0430 \u0437\u0430\u043f\u0438\u0441\u0430\u043d\u0430!\\n\\n';\ntext += '\u2022 \u0414\u0438\u0441\u0442\u0430\u043d\u0446\u0438\u044f: ' + (td.distance_km || '\u043d/\u0434') + ' \u043a\u043c\\n';\ntext += '\u2022 \u0412\u0440\u0435\u043c\u044f: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' \u043c\u0438\u043d' : '\u043d/\u0434') + '\\n';\ntext += '\u2022 \u0422\u0435\u043c\u043f: ' + formatPace(td.avg_pace_seconds) + '/\u043a\u043c\\n';\nif (td.avg_heart_rate) text += '\u2022 \u041f\u0443\u043b\u044c\u0441: ' + td.avg_heart_rate + ' \u0443\u0434/\u043c\u0438\u043d\\n';\nif (td.calories) text += '\u2022 \u041a\u0430\u043b\u043e\u0440\u0438\u0438: ' + td.calories + '\\n';\nif (td.elevation_gain_m) text += '\u2022 \u041d\u0430\u0431\u043e\u0440 \u0432\u044b\u0441\u043e\u0442\u044b: ' + td.elevation_gain_m + ' \u043c\\n';\ntext += '\\n\ud83d\udcaa \u041e\u0442\u043b\u0438\u0447\u043d\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430!';\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
+                    "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '📝 Тренировка записана!\\n\\n';\ntext += '• Дистанция: ' + (td.distance_km || 'н/д') + ' км\\n';\ntext += '• Время: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\ntext += '• Темп: ' + formatPace(td.avg_pace_seconds) + '/км\\n';\nif (td.avg_heart_rate) text += '• Пульс: ' + td.avg_heart_rate + ' уд/мин\\n';\nif (td.calories) text += '• Калории: ' + td.calories + '\\n';\nif (td.elevation_gain_m) text += '• Набор высоты: ' + td.elevation_gain_m + ' м\\n';\ntext += '\\n💪 Отличная работа!';\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
                 },
                 "name": "Format Photo Response",
                 "type": "n8n-nodes-base.function",
@@ -1924,13 +2100,13 @@
             {
                 "id": "merge-context",
                 "parameters": {
-                    "functionCode": "const checkUserData = $('Check User').first().json;\nconst planItems = $('Get Active Plan').all();\nconst trainingItems = items;\n\nlet activePlan = null;\nif (planItems.length > 0 && planItems[0].json && planItems[0].json.id) {\n  activePlan = planItems[0].json;\n}\n\nlet recentTrainings = [];\nif (trainingItems.length > 0) {\n  recentTrainings = trainingItems.map(t => t.json).filter(t => t && t.id);\n}\n\nreturn [{\n  json: {\n    ...checkUserData,\n    active_plan: activePlan,\n    recent_trainings: recentTrainings\n  }\n}];"
+                    "functionCode": "const checkUserData = $('Check User').first().json;\nconst planItems = $('Get Active Plan').all();\nconst trainingItems = $('Get Recent Trainings').all();\nconst strategyItems = items;\n\nlet activePlan = null;\nif (planItems.length > 0 && planItems[0].json && planItems[0].json.id) {\n  activePlan = planItems[0].json;\n}\n\nlet recentTrainings = [];\nif (trainingItems.length > 0) {\n  recentTrainings = trainingItems.map(t => t.json).filter(t => t && t.id);\n}\n\nlet activeStrategy = null;\nif (strategyItems.length > 0 && strategyItems[0].json && strategyItems[0].json.id) {\n  activeStrategy = strategyItems[0].json;\n}\n\nreturn [{\n  json: {\n    ...checkUserData,\n    active_plan: activePlan,\n    recent_trainings: recentTrainings,\n    active_strategy: activeStrategy\n  }\n}];"
                 },
                 "name": "Merge Context",
                 "type": "n8n-nodes-base.function",
                 "typeVersion": 1,
                 "position": [
-                    2240,
+                    2340,
                     600
                 ]
             },
@@ -1951,7 +2127,7 @@
             {
                 "id": "prepare-data",
                 "parameters": {
-                    "functionCode": "const data = items[0].json;\nconst message = data.message_text;\nconst stage = data.onboarding_stage || 'started';\nconst firstName = data.first_name || '\u0434\u0440\u0443\u0433';\n\nlet systemPrompt = '';\nlet nextStage = stage;\nlet isPlanGeneration = false;\n\nconst JSON_FORMAT = '\u041e\u0442\u0432\u0435\u0442\u044c JSON: {\"extracted\": {...}, \"response\": \"\u0442\u0435\u043a\u0441\u0442\"}. \u041d\u0415 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 * _ ` [ ]';\n\nconst formatPace = (sec) => {\n  if (!sec) return '\u043d/\u0434';\n  return Math.floor(sec/60) + ':' + (sec%60).toString().padStart(2,'0');\n};\n\n// \u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043e\u043a\nlet trainingsContext = '';\nconst trainings = data.recent_trainings || [];\nif (trainings.length > 0) {\n  trainingsContext = '\\n\\n\u0423 \u041f\u041e\u041b\u042c\u0417\u041e\u0412\u0410\u0422\u0415\u041b\u042f \u0415\u0421\u0422\u042c ' + trainings.length + ' \u0417\u0410\u041f\u0418\u0421\u0410\u041d\u041d\u042b\u0425 \u0422\u0420\u0415\u041d\u0418\u0420\u041e\u0412\u041e\u041a:\\n';\n  trainings.slice(0, 10).forEach(t => {\n    trainingsContext += '\u2022 ' + t.date + ': ' + (t.distance_km || '?') + ' \u043a\u043c';\n    if (t.duration_seconds) trainingsContext += ', ' + Math.round(t.duration_seconds/60) + ' \u043c\u0438\u043d';\n    if (t.avg_pace_seconds) trainingsContext += ', \u0442\u0435\u043c\u043f ' + formatPace(t.avg_pace_seconds) + '/\u043a\u043c';\n    if (t.avg_heart_rate) trainingsContext += ', \u043f\u0443\u043b\u044c\u0441 ' + t.avg_heart_rate;\n    if (t.type) trainingsContext += ' (' + t.type + ')';\n    trainingsContext += '\\n';\n  });\n} else {\n  trainingsContext = '\\n\\n\u0422\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043e\u043a \u043f\u043e\u043a\u0430 \u043d\u0435 \u0437\u0430\u043f\u0438\u0441\u0430\u043d\u043e.\\n';\n}\n\n// \u041a\u043e\u043d\u0442\u0435\u043a\u0441\u0442 \u043f\u043b\u0430\u043d\u0430\nlet planContext = '';\nif (data.active_plan && data.active_plan.plan_data) {\n  try {\n    const pd = typeof data.active_plan.plan_data === 'string' ? JSON.parse(data.active_plan.plan_data) : data.active_plan.plan_data;\n    planContext = '\\n\u0410\u041a\u0422\u0418\u0412\u041d\u042b\u0419 \u041f\u041b\u0410\u041d: ' + (pd.raw_plan || '').substring(0, 500);\n  } catch(e) {}\n}\n\nif (stage !== 'completed') {\n  const prompts = {\n    'started': '\u041f\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0439 ' + firstName + '. \u041f\u0440\u0435\u0434\u0441\u0442\u0430\u0432\u044c\u0441\u044f AI-\u0442\u0440\u0435\u043d\u0435\u0440\u043e\u043c \u043f\u043e \u0431\u0435\u0433\u0443. \u0421\u043f\u0440\u043e\u0441\u0438 \u0443\u0440\u043e\u0432\u0435\u043d\u044c: \u043d\u043e\u0432\u0438\u0447\u043e\u043a/\u043b\u044e\u0431\u0438\u0442\u0435\u043b\u044c/\u043f\u0440\u043e\u0434\u0432\u0438\u043d\u0443\u0442\u044b\u0439. ' + JSON_FORMAT,\n    'profile': '\u041e\u043f\u0440\u0435\u0434\u0435\u043b\u0438 level: beginner/intermediate/advanced. \u0421\u043f\u0440\u043e\u0441\u0438 \u0432\u043e\u0437\u0440\u0430\u0441\u0442. ' + JSON_FORMAT + ' extracted: {level: ...}',\n    'physical': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 age. \u0421\u043f\u0440\u043e\u0441\u0438 \u0440\u043e\u0441\u0442 \u0438 \u0432\u0435\u0441. ' + JSON_FORMAT + ' extracted: {age: \u0447\u0438\u0441\u043b\u043e}',\n    'heart_rate': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 height_cm, weight_kg. \u0421\u043f\u0440\u043e\u0441\u0438 \u043f\u0443\u043b\u044c\u0441 \u043f\u043e\u043a\u043e\u044f. ' + JSON_FORMAT + ' extracted: {height_cm, weight_kg}',\n    'running_info': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 resting_hr. \u0421\u043f\u0440\u043e\u0441\u0438 \u0442\u0435\u043c\u043f \u043d\u0430 5\u043a\u043c. ' + JSON_FORMAT + ' extracted: {resting_hr}',\n    'lab_testing': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 current_5k_pace_seconds (\u0442\u0435\u043c\u043f \u0432 \u0441\u0435\u043a/\u043a\u043c). \u0421\u043f\u0440\u043e\u0441\u0438 \u043f\u0440\u043e VO2max \u0442\u0435\u0441\u0442. ' + JSON_FORMAT + ' extracted: {current_5k_pace_seconds}',\n    'training_freq': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 has_lab_testing. \u0421\u043f\u0440\u043e\u0441\u0438 \u0434\u043d\u0435\u0439 \u0432 \u043d\u0435\u0434\u0435\u043b\u044e (3-6). ' + JSON_FORMAT + ' extracted: {has_lab_testing, vo2max?, lthr?}',\n    'race_details': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 weekly_runs. \u0421\u043f\u0440\u043e\u0441\u0438 \u0434\u0438\u0441\u0442\u0430\u043d\u0446\u0438\u044e \u0437\u0430\u0431\u0435\u0433\u0430, \u0434\u0430\u0442\u0443, \u0446\u0435\u043b\u044c. ' + JSON_FORMAT + ' extracted: {weekly_runs}',\n    'strategy_preview': '\u0418\u0437\u0432\u043b\u0435\u043a\u0438 race_distance (5k/10k/half/marathon), race_date (YYYY-MM-DD), target_time_seconds. \u0421\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0439 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u044e. ' + JSON_FORMAT + ' extracted: {race_distance, race_date, strategy_generated: true}'\n  };\n  systemPrompt = prompts[stage] || prompts['started'];\n  const nextStages = {started:'profile', profile:'physical', physical:'heart_rate', heart_rate:'running_info', running_info:'lab_testing', lab_testing:'training_freq', training_freq:'race_details', race_details:'strategy_preview', strategy_preview:'completed'};\n  nextStage = nextStages[stage] || stage;\n} else {\n  if (/\u043f\u043b\u0430\u043d|\u0441\u043e\u0441\u0442\u0430\u0432|\u0434\u0430\u0432\u0430\u0439|\u043d\u0430\u0447\u043d|\u0433\u043e\u0442\u043e\u0432|\u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a|\u043d\u0435\u0434\u0435\u043b/i.test(message)) {\n    isPlanGeneration = true;\n    systemPrompt = 'AI-\u0442\u0440\u0435\u043d\u0435\u0440 \u0434\u043b\u044f ' + firstName + '. \u0421\u043e\u0441\u0442\u0430\u0432\u044c \u043f\u043b\u0430\u043d \u043d\u0430 \u043d\u0435\u0434\u0435\u043b\u044e (' + (data.weekly_runs || 3) + ' \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043e\u043a).' + trainingsContext + planContext + ' ' + JSON_FORMAT + ' extracted: {plan_generated: true, total_km: \u0447\u0438\u0441\u043b\u043e}';\n  } else {\n    systemPrompt = '\u0422\u044b AI-\u0442\u0440\u0435\u043d\u0435\u0440 \u043f\u043e \u0431\u0435\u0433\u0443 \u0434\u043b\u044f ' + firstName + '. \u041d\u0415 \u0437\u0434\u043e\u0440\u043e\u0432\u0430\u0439\u0441\u044f.' + trainingsContext + planContext + '\\n\\n\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0441\u043f\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442: \"' + message + '\"\\n\\n\u041f\u0420\u0410\u0412\u0418\u041b\u0410 \u041e\u0422\u0412\u0415\u0422\u0410:\\n1. \u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0439 \u0414\u0410\u041d\u041d\u042b\u0415 \u0422\u0420\u0415\u041d\u0418\u0420\u041e\u0412\u041e\u041a \u0432\u044b\u0448\u0435 \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u0430\\n2. \u0415\u0441\u043b\u0438 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0441\u043f\u0440\u0430\u0448\u0438\u0432\u0430\u0435\u0442 \"\u043a\u0430\u043a \u043f\u043e\u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u0430\u043b\u0441\u044f\" \u2014 \u0440\u0430\u0441\u0441\u043a\u0430\u0436\u0438 \u043e \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0439 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0435 \u0438\u0437 \u0441\u043f\u0438\u0441\u043a\u0430\\n3. \u0411\u0443\u0434\u044c \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u044b\u043c: \u0443\u043a\u0430\u0437\u044b\u0432\u0430\u0439 \u0446\u0438\u0444\u0440\u044b \u0438\u0437 \u0434\u0430\u043d\u043d\u044b\u0445\\n4. \u0414\u0430\u0439 \u043a\u0440\u0430\u0442\u043a\u0443\u044e \u043e\u0446\u0435\u043d\u043a\u0443 \u0438 \u0441\u043e\u0432\u0435\u0442 \u043a\u0430\u043a \u0442\u0440\u0435\u043d\u0435\u0440\\n\\n' + JSON_FORMAT;\n  }\n}\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    message_text: message,\n    message_id: data.message_id,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    is_plan_generation: isPlanGeneration,\n    weekly_runs: data.weekly_runs\n  }\n}];"
+                    "functionCode": "const data = items[0].json;\nconst message = data.message_text;\nconst stage = data.onboarding_stage || 'started';\nconst firstName = data.first_name || 'друг';\n\nlet systemPrompt = '';\nlet nextStage = stage;\nlet isPlanGeneration = false;\n\nconst JSON_FORMAT = 'Ответь JSON: {\"extracted\": {...}, \"response\": \"текст\"}. НЕ используй * _ ` [ ]';\n\nconst formatPace = (sec) => {\n  if (!sec) return 'н/д';\n  return Math.floor(sec/60) + ':' + (sec%60).toString().padStart(2,'0');\n};\n\n// Контекст тренировок\nlet trainingsContext = '';\nconst trainings = data.recent_trainings || [];\nif (trainings.length > 0) {\n  trainingsContext = '\\n\\nУ ПОЛЬЗОВАТЕЛЯ ЕСТЬ ' + trainings.length + ' ЗАПИСАННЫХ ТРЕНИРОВОК:\\n';\n  trainings.slice(0, 10).forEach(t => {\n    trainingsContext += '• ' + t.date + ': ' + (t.distance_km || '?') + ' км';\n    if (t.duration_seconds) trainingsContext += ', ' + Math.round(t.duration_seconds/60) + ' мин';\n    if (t.avg_pace_seconds) trainingsContext += ', темп ' + formatPace(t.avg_pace_seconds) + '/км';\n    if (t.avg_heart_rate) trainingsContext += ', пульс ' + t.avg_heart_rate;\n    if (t.type) trainingsContext += ' (' + t.type + ')';\n    trainingsContext += '\\n';\n  });\n} else {\n  trainingsContext = '\\n\\nТренировок пока не записано.\\n';\n}\n\n// Контекст плана\nlet planContext = '';\nif (data.active_plan && data.active_plan.plan_data) {\n  try {\n    const pd = typeof data.active_plan.plan_data === 'string' ? JSON.parse(data.active_plan.plan_data) : data.active_plan.plan_data;\n    planContext = '\\nАКТИВНЫЙ ПЛАН: ' + (pd.raw_plan || '').substring(0, 500);\n  } catch(e) {}\n}\n\n// Контекст стратегии\nlet strategyContext = '';\nlet currentPhase = null;\nif (data.active_strategy && data.active_strategy.phases) {\n  try {\n    const strategy = data.active_strategy;\n    const phases = typeof strategy.phases === 'string' ? JSON.parse(strategy.phases) : strategy.phases;\n    const startDate = new Date(strategy.start_date);\n    const now = new Date();\n    const weeksSinceStart = Math.max(1, Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000)));\n\n    for (const phase of phases) {\n      if (weeksSinceStart >= phase.start_week && weeksSinceStart <= phase.end_week) {\n        currentPhase = phase;\n        break;\n      }\n    }\n\n    strategyContext = '\\n\\nСТРАТЕГИЯ ПОДГОТОВКИ:';\n    strategyContext += '\\n• Цель: ' + (strategy.race_distance || '') + (strategy.race_date ? ' (' + strategy.race_date + ')' : '');\n    strategyContext += '\\n• Всего недель: ' + strategy.total_weeks + ', текущая неделя: ' + weeksSinceStart;\n    if (currentPhase) {\n      strategyContext += '\\n• Текущая фаза: ' + currentPhase.display_name + ' (нед. ' + currentPhase.start_week + '-' + currentPhase.end_week + ')';\n      strategyContext += '\\n• Фокус: ' + currentPhase.focus;\n      strategyContext += '\\n• Объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км/нед';\n      strategyContext += '\\n• Ключевые тренировки: ' + (currentPhase.key_workouts || []).join(', ');\n    }\n    strategyContext += '\\n• Все фазы: ';\n    phases.forEach(p => {\n      const isCurrent = (currentPhase && p.name === currentPhase.name) ? ' [ТЕКУЩАЯ]' : '';\n      strategyContext += p.display_name + ' (нед.' + p.start_week + '-' + p.end_week + ')' + isCurrent + ', ';\n    });\n    strategyContext += '\\n';\n  } catch(e) {\n    strategyContext = '';\n  }\n}\n\nif (stage !== 'completed') {\n  // Данные профиля для контекста\n  const profileInfo = 'Данные пользователя: '\n    + (data.race_distance ? 'дистанция=' + data.race_distance + ', ' : '')\n    + (data.race_date ? 'дата=' + data.race_date + ', ' : '')\n    + (data.target_time_seconds ? 'цель=' + data.target_time_seconds + 'сек, ' : '')\n    + (data.weekly_runs ? 'тренировок/нед=' + data.weekly_runs + ', ' : '')\n    + (data.level ? 'уровень=' + data.level : '');\n\n  const prompts = {\n    'started': 'Приветствуй ' + firstName + '. Представься AI-тренером по бегу. Спроси уровень: новичок/любитель/продвинутый. ' + JSON_FORMAT,\n    'profile': 'Определи level: beginner/intermediate/advanced. Спроси возраст. ' + JSON_FORMAT + ' extracted: {level: ...}',\n    'physical': 'Извлеки age. Спроси рост и вес. ' + JSON_FORMAT + ' extracted: {age: число}',\n    'heart_rate': 'Извлеки height_cm, weight_kg. Спроси пульс покоя. ' + JSON_FORMAT + ' extracted: {height_cm, weight_kg}',\n    'running_info': 'Извлеки resting_hr. Спроси темп на 5км. ' + JSON_FORMAT + ' extracted: {resting_hr}',\n    'lab_testing': 'Извлеки current_5k_pace_seconds (темп в сек/км). Спроси про VO2max тест. ' + JSON_FORMAT + ' extracted: {current_5k_pace_seconds}',\n    'training_freq': 'Извлеки has_lab_testing. Спроси дней в неделю (3-6). ' + JSON_FORMAT + ' extracted: {has_lab_testing, vo2max?, lthr?}',\n    'race_details': 'Извлеки weekly_runs (число). Также если пользователь указал дистанцию/дату/цель забега - извлеки их тоже. '\n      + 'Спроси дистанцию забега, дату, целевое время. '\n      + 'В конце ответа скажи: \"Отлично! Сейчас составлю стратегию подготовки!\" '\n      + JSON_FORMAT + ' extracted: {weekly_runs, race_distance: 5k/10k/half/marathon, race_date: YYYY-MM-DD, target_time_seconds: число}',\n    'strategy_preview': profileInfo + '\\n\\n'\n      + 'ИСПОЛЬЗУЙ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ВЫШЕ. Если в сообщении есть новые данные - используй их.\\n\\n'\n      + 'СГЕНЕРИРУЙ СТРАТЕГИЮ ПОДГОТОВКИ К ЗАБЕГУ:\\n'\n      + '1. Рассчитай количество недель от сегодня до даты забега\\n'\n      + '2. Раздели подготовку на 4 фазы:\\n'\n      + '   - base (базовый): ~30% недель\\n'\n      + '   - development (развитие): ~30% недель\\n'\n      + '   - specialization (специализация): ~25% недель\\n'\n      + '   - taper (тейпер): ~15% недель (мин 1, макс 3)\\n'\n      + '3. Для каждой фазы: start_week, end_week, duration_weeks, focus, target_weekly_km_min, target_weekly_km_max, key_workouts, intensity_distribution\\n'\n      + '4. В response покажи красивый обзор стратегии\\n\\n'\n      + JSON_FORMAT + '\\n'\n      + 'extracted: { race_distance: ' + (data.race_distance || 'half') + ', race_date: ' + (data.race_date || new Date(Date.now() + 16*7*24*60*60*1000).toISOString().split('T')[0]) + ', target_time_seconds: ' + (data.target_time_seconds || 6300) + ', strategy_generated: true, total_weeks: число, strategy_summary: \"краткое описание\", phases: [{name, display_name, start_week, end_week, duration_weeks, focus, target_weekly_km_min, target_weekly_km_max, key_workouts: [...], intensity_distribution}] }'\n  };\n  systemPrompt = prompts[stage] || prompts['started'];\n  const nextStages = {started:'profile', profile:'physical', physical:'heart_rate', heart_rate:'running_info', running_info:'lab_testing', lab_testing:'training_freq', training_freq:'race_details', race_details:'strategy_preview', strategy_preview:'completed'};\n  nextStage = nextStages[stage] || stage;\n} else {\n  const isStrategyQuestion = /стратег|фаз[аыуеи]|период|этап подготовки|план подготовки|как.*иду|долгосроч|подготов.*забег/i.test(message);\n\n  if (isStrategyQuestion && data.active_strategy) {\n    systemPrompt = 'Ты AI-тренер по бегу для ' + firstName + '. НЕ здоровайся.'\n      + strategyContext + trainingsContext + planContext\n      + '\\n\\nПользователь спрашивает о стратегии: \"' + message + '\"'\n      + '\\n\\nОтветь подробно о текущей фазе, прогрессе и что впереди.'\n      + '\\n\\n' + JSON_FORMAT;\n  } else if (/план|состав|давай|начн|готов|тренировк|недел/i.test(message)) {\n    isPlanGeneration = true;\n    systemPrompt = 'AI-тренер для ' + firstName + '. Составь план на неделю (' + (data.weekly_runs || 3) + ' тренировок).'\n      + strategyContext + trainingsContext + planContext\n      + (currentPhase ? '\\n\\nВАЖНО: План должен соответствовать ТЕКУЩЕЙ ФАЗЕ: ' + currentPhase.display_name + '. Фокус: ' + currentPhase.focus + '. Объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км.' : '')\n      + ' ' + JSON_FORMAT + ' extracted: {plan_generated: true, total_km: число}';\n  } else {\n    systemPrompt = 'Ты AI-тренер по бегу для ' + firstName + '. НЕ здоровайся.'\n      + strategyContext + trainingsContext + planContext\n      + '\\n\\nПользователь спрашивает: \"' + message + '\"'\n      + '\\n\\nПРАВИЛА ОТВЕТА:\\n1. Используй ДАННЫЕ ТРЕНИРОВОК выше'\n      + '\\n2. Если есть стратегия - учитывай текущую фазу'\n      + '\\n3. Будь конкретным: указывай цифры'\n      + '\\n4. Дай краткую оценку и совет'\n      + '\\n\\n' + JSON_FORMAT;\n  }\n}\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    message_text: message,\n    message_id: data.message_id,\n    system_prompt: systemPrompt,\n    onboarding_stage: stage,\n    next_stage: nextStage,\n    is_plan_generation: isPlanGeneration,\n    weekly_runs: data.weekly_runs\n  }\n}];"
                 },
                 "name": "Prepare Data",
                 "type": "n8n-nodes-base.function",
@@ -1989,7 +2165,7 @@
             {
                 "id": "extract-response",
                 "parameters": {
-                    "functionCode": "const response = items[0].json;\nconst prepareData = $('Prepare Data').first().json;\nconst aiContent = response.choices[0].message.content;\n\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {}\n\nresponseText = responseText.replace(/\\*/g, '\u2022').replace(/_/g, ' ').replace(/`/g, \"'\").replace(/\\[/g, '(').replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    is_plan_generation: prepareData.is_plan_generation,\n    weekly_runs: prepareData.weekly_runs\n  }\n}];"
+                    "functionCode": "const response = items[0].json;\nconst prepareData = $('Prepare Data').first().json;\nconst aiContent = response.choices[0].message.content;\n\nlet extracted = {};\nlet responseText = aiContent;\n\ntry {\n  const parsed = JSON.parse(aiContent);\n  extracted = parsed.extracted || {};\n  responseText = parsed.response || aiContent;\n} catch (e) {}\n\nresponseText = responseText.replace(/\\*/g, '•').replace(/_/g, ' ').replace(/`/g, \"'\").replace(/\\[/g, '(').replace(/\\]/g, ')');\n\nreturn [{\n  json: {\n    user_id: prepareData.user_id,\n    chat_id: prepareData.chat_id,\n    response_text: responseText,\n    onboarding_stage: prepareData.onboarding_stage,\n    next_stage: prepareData.next_stage,\n    extracted_data: extracted,\n    is_plan_generation: prepareData.is_plan_generation,\n    weekly_runs: prepareData.weekly_runs\n  }\n}];"
                 },
                 "name": "Extract Response",
                 "type": "n8n-nodes-base.function",
@@ -2034,7 +2210,7 @@
                         "conditions": [
                             {
                                 "id": "c1",
-                                "leftValue": "={{ $json.onboarding_stage }}",
+                                "leftValue": "={{ $('Extract Response').first().json.onboarding_stage }}",
                                 "rightValue": "completed",
                                 "operator": {
                                     "type": "string",
@@ -2056,7 +2232,7 @@
             {
                 "id": "build-update",
                 "parameters": {
-                    "functionCode": "const data = items[0].json;\nconst ext = data.extracted_data || {};\nconst updateFields = {};\nlet nextStage = data.next_stage;\n\nif (data.onboarding_stage === 'started') updateFields.goal = 'race';\nif (data.onboarding_stage === 'strategy_preview' && ext.strategy_generated) nextStage = 'completed';\nif (nextStage && nextStage !== data.onboarding_stage) updateFields.onboarding_stage = nextStage;\n\n['level','age','height_cm','weight_kg','current_5k_pace_seconds','weekly_runs','race_distance','race_date','target_time_seconds','resting_hr','max_hr','has_lab_testing','vo2max','lthr'].forEach(k => { if (ext[k] !== undefined) updateFields[k] = ext[k]; });\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0\n  }\n}];"
+                    "functionCode": "const data = $('Extract Response').first().json;\nconst ext = data.extracted_data || {};\nconst updateFields = {};\nlet nextStage = data.next_stage;\n\nif (data.onboarding_stage === 'started') updateFields.goal = 'race';\nif (data.onboarding_stage === 'strategy_preview' && ext.strategy_generated) nextStage = 'completed';\nif (nextStage && nextStage !== data.onboarding_stage) updateFields.onboarding_stage = nextStage;\n\n['level','age','height_cm','weight_kg','current_5k_pace_seconds','weekly_runs','race_distance','race_date','target_time_seconds','resting_hr','max_hr','has_lab_testing','vo2max','lthr'].forEach(k => { if (ext[k] !== undefined) updateFields[k] = ext[k]; });\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    update_fields: updateFields,\n    has_updates: Object.keys(updateFields).length > 0,\n    is_strategy_stage: data.onboarding_stage === 'strategy_preview' && ext.strategy_generated === true\n  }\n}];"
                 },
                 "name": "Build Update Data",
                 "type": "n8n-nodes-base.function",
@@ -2294,7 +2470,7 @@
                     "nodeCredentialType": "openAiApi",
                     "sendBody": true,
                     "specifyBody": "json",
-                    "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"\u0420\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u0439 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0443 \u0441 \u0444\u043e\u0442\u043e. \u0412\u0435\u0440\u043d\u0438 JSON: {\\\"recognized\\\": true/false, \\\"data\\\": {\\\"distance_km\\\": \u0447\u0438\u0441\u043b\u043e, \\\"duration_seconds\\\": \u0447\u0438\u0441\u043b\u043e, \\\"avg_pace_seconds\\\": \u0447\u0438\u0441\u043b\u043e, \\\"avg_heart_rate\\\": \u0447\u0438\u0441\u043b\u043e \u0438\u043b\u0438 null, \\\"type\\\": \\\"easy_run\\\"/\\\"tempo\\\"/\\\"intervals\\\"}, \\\"response\\\": \\\"\u0442\u0435\u043a\u0441\u0442\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:{{ $json.mime_type }};base64,{{ $json.base64_image }}\"\n          }\n        },\n        {\n          \"type\": \"text\", \n          \"text\": \"\u0420\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u0439 \u0442\u0440\u0435\u043d\u0438\u0440\u043e\u0432\u043a\u0443\"\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
+                    "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Распознай тренировку с фото. Верни JSON: {\\\"recognized\\\": true/false, \\\"data\\\": {\\\"distance_km\\\": число, \\\"duration_seconds\\\": число, \\\"avg_pace_seconds\\\": число, \\\"avg_heart_rate\\\": число или null, \\\"type\\\": \\\"easy_run\\\"/\\\"tempo\\\"/\\\"intervals\\\"}, \\\"response\\\": \\\"текст\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"data:{{ $json.mime_type }};base64,{{ $json.base64_image }}\"\n          }\n        },\n        {\n          \"type\": \"text\", \n          \"text\": \"Распознай тренировку\"\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 500,\n  \"response_format\": {\"type\": \"json_object\"}\n}"
                 },
                 "name": "GPT-4o Vision",
                 "type": "n8n-nodes-base.httpRequest",
@@ -2307,6 +2483,148 @@
                     "openAiApi": {
                         "id": "koikxNcf4ds6vKgZ",
                         "name": "OpenAI - Running Coach"
+                    }
+                }
+            },
+            {
+                "id": "get-strategy",
+                "parameters": {
+                    "operation": "getAll",
+                    "tableId": "training_strategies",
+                    "returnAll": false,
+                    "limit": 1,
+                    "filterType": "manual",
+                    "matchType": "allFilters",
+                    "filters": {
+                        "conditions": [
+                            {
+                                "keyName": "user_id",
+                                "condition": "eq",
+                                "keyValue": "={{ $('Check User').first().json.user_id }}"
+                            },
+                            {
+                                "keyName": "status",
+                                "condition": "eq",
+                                "keyValue": "active"
+                            }
+                        ]
+                    },
+                    "options": {
+                        "orderByColumn": "created_at",
+                        "orderType": "desc"
+                    }
+                },
+                "name": "Get Strategy",
+                "type": "n8n-nodes-base.supabase",
+                "typeVersion": 1,
+                "position": [
+                    2140,
+                    600
+                ],
+                "alwaysOutputData": true,
+                "credentials": {
+                    "supabaseApi": {
+                        "id": "CJ3Z1MvRt6BxblaB",
+                        "name": "Supabase - Running Coach"
+                    }
+                }
+            },
+            {
+                "id": "is-strategy-stage",
+                "parameters": {
+                    "conditions": {
+                        "options": {
+                            "caseSensitive": true,
+                            "typeValidation": "strict"
+                        },
+                        "conditions": [
+                            {
+                                "id": "strategy-check",
+                                "leftValue": "={{ $('Build Update Data').first().json.is_strategy_stage }}",
+                                "rightValue": true,
+                                "operator": {
+                                    "type": "boolean",
+                                    "operation": "equals"
+                                }
+                            }
+                        ],
+                        "combinator": "and"
+                    }
+                },
+                "name": "Is Strategy Stage?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 2,
+                "position": [
+                    4240,
+                    300
+                ]
+            },
+            {
+                "id": "save-strategy",
+                "parameters": {
+                    "operation": "create",
+                    "tableId": "training_strategies",
+                    "dataToSend": "defineBelow",
+                    "fieldsUi": {
+                        "fieldValues": [
+                            {
+                                "fieldId": "user_id",
+                                "fieldValue": "={{ $('Extract Response').first().json.user_id }}"
+                            },
+                            {
+                                "fieldId": "goal_type",
+                                "fieldValue": "race"
+                            },
+                            {
+                                "fieldId": "race_distance",
+                                "fieldValue": "={{ $('Extract Response').first().json.extracted_data.race_distance }}"
+                            },
+                            {
+                                "fieldId": "race_date",
+                                "fieldValue": "={{ $('Extract Response').first().json.extracted_data.race_date }}"
+                            },
+                            {
+                                "fieldId": "target_time_seconds",
+                                "fieldValue": "={{ $('Extract Response').first().json.extracted_data.target_time_seconds }}"
+                            },
+                            {
+                                "fieldId": "total_weeks",
+                                "fieldValue": "={{ $('Extract Response').first().json.extracted_data.total_weeks }}"
+                            },
+                            {
+                                "fieldId": "phases",
+                                "fieldValue": "={{ JSON.stringify($('Extract Response').first().json.extracted_data.phases) }}"
+                            },
+                            {
+                                "fieldId": "summary",
+                                "fieldValue": "={{ $('Extract Response').first().json.extracted_data.strategy_summary }}"
+                            },
+                            {
+                                "fieldId": "start_date",
+                                "fieldValue": "={{ $now.format('yyyy-MM-dd') }}"
+                            },
+                            {
+                                "fieldId": "end_date",
+                                "fieldValue": "={{ $('Extract Response').first().json.extracted_data.race_date }}"
+                            },
+                            {
+                                "fieldId": "status",
+                                "fieldValue": "active"
+                            }
+                        ]
+                    }
+                },
+                "name": "Save Strategy",
+                "type": "n8n-nodes-base.supabase",
+                "typeVersion": 1,
+                "position": [
+                    4440,
+                    200
+                ],
+                "credentials": {
+                    "supabaseApi": {
+                        "id": "CJ3Z1MvRt6BxblaB",
+                        "name": "Supabase - Running Coach"
                     }
                 }
             }
@@ -2524,7 +2842,7 @@
                 "main": [
                     [
                         {
-                            "node": "Merge Context",
+                            "node": "Get Strategy",
                             "type": "main",
                             "index": 0
                         }
@@ -2680,6 +2998,40 @@
                             "index": 0
                         }
                     ]
+                ]
+            },
+            "Get Strategy": {
+                "main": [
+                    [
+                        {
+                            "node": "Merge Context",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Update User Profile": {
+                "main": [
+                    [
+                        {
+                            "node": "Is Strategy Stage?",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ]
+                ]
+            },
+            "Is Strategy Stage?": {
+                "main": [
+                    [
+                        {
+                            "node": "Save Strategy",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    []
                 ]
             }
         },
