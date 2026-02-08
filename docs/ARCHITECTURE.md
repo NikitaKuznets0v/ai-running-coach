@@ -1,6 +1,6 @@
 # Архитектура AI Running Coach
 
-**Версия:** 1.6 (8 февраля 2026)
+**Версия:** 2.0-beta (8 февраля 2026)
 
 Этот документ описывает всю логику бота. Используйте его для понимания системы, дебага и будущей миграции с n8n на код (Node.js/Python).
 
@@ -160,6 +160,48 @@ Get Active Plan (Supabase: weekly_plans, status='active')
 | Supabase | CJ3Z1MvRt6BxblaB | Все операции с БД |
 | Telegram | SLNhx6dJUSPFBV35 | Приём/отправка сообщений |
 | OpenAI | koikxNcf4ds6vKgZ | GPT-4o-mini (текст), GPT-4o (фото) |
+
+---
+
+## Scheduled Workflow: Weekly Summary
+
+**Файл:** `n8n-workflows/workflow-weekly-summary.json` (12 нод)
+**Workflow ID:** L6btLLT88hsIW9Eh
+**Расписание:** каждое воскресенье в 20:00 МСК
+
+```
+Schedule Trigger (Sunday 20:00)
+  → Get Active Users (onboarding_stage='completed', is_active=true)
+    → SplitInBatches (1 пользователь за итерацию)
+      → Get Week Trainings (trainings за текущую неделю)
+        → Summarize Week (агрегация: км, темп, пульс, кол-во)
+          → Get Strategy (активная стратегия)
+            → Build Summary Prompt (формирует промпт для AI)
+              → Call OpenAI (GPT-4o-mini: оценка + план)
+                → Parse Response (собирает финальное сообщение)
+                  → Deactivate Old Plan (status → 'completed')
+                    → Save New Plan (новая запись weekly_plans)
+                      → Send Summary (Telegram)
+                        → [loop → SplitInBatches]
+```
+
+**Формат сообщения:**
+```
+Итоги недели:
+Тренировок: 3 из 4
+Дистанция: 28.5 км (цель: 25-30 км)
+Средний темп: 5:45/км
+
+[AI оценка: 2-3 предложения]
+
+План на следующую неделю (10-16.02):
+Пн: Лёгкий бег 6 км
+Ср: Темповый 8 км
+Пт: Лёгкий 5 км
+Вс: Длинная 12 км
+
+Общий объём: ~31 км
+```
 
 ---
 
