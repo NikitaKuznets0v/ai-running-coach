@@ -264,6 +264,10 @@
                         {
                             "fieldId": "is_planned",
                             "fieldValue": "={{ false }}"
+                        },
+                        {
+                            "fieldId": "screenshot_count",
+                            "fieldValue": "1"
                         }
                     ]
                 }
@@ -272,8 +276,8 @@
             "type": "n8n-nodes-base.supabase",
             "typeVersion": 1,
             "position": [
-                2640,
-                100
+                3240,
+                200
             ],
             "credentials": {
                 "supabaseApi": {
@@ -286,14 +290,14 @@
         {
             "id": "format-photo-response",
             "parameters": {
-                "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\n// Check if save failed (duplicate)\nconst saveResult = items[0].json;\nconst isDuplicate = saveResult.error || saveResult.code === '23505';\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '';\nif (isDuplicate) {\n  text = 'Эта тренировка уже записана! Похожая запись за сегодня уже есть в базе.';\n} else {\n  text = 'Тренировка записана!\\n\\n';\n  text += '- Дистанция: ' + (td.distance_km || 'н/д') + ' км\\n';\n  text += '- Время: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\n  text += '- Темп: ' + formatPace(td.avg_pace_seconds) + '/км\\n';\n  if (td.avg_heart_rate) text += '- Пульс: ' + td.avg_heart_rate + ' уд/мин\\n';\n  if (td.calories) text += '- Калории: ' + td.calories + '\\n';\n  if (td.elevation_gain_m) text += '- Набор высоты: ' + td.elevation_gain_m + ' м\\n';\n  text += '\\nОтличная работа!';\n}\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
+                "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\n// Check if save failed (duplicate)\nconst saveResult = items[0].json;\nconst isDuplicate = saveResult.error || saveResult.code === '23505';\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '';\nif (isDuplicate) {\n  text = 'Эта тренировка уже записана! Похожая запись за сегодня уже есть в базе.';\n} else {\n  text = 'Тренировка записана!\\n\\n';\n  text += '- Дистанция: ' + (td.distance_km || 'н/д') + ' км\\n';\n  text += '- Время: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\n  text += '- Темп: ' + formatPace(td.avg_pace_seconds) + '/км\\n';\n  if (td.avg_heart_rate) text += '- Пульс: ' + td.avg_heart_rate + ' уд/мин\\n';\n  if (td.calories) text += '- Калории: ' + td.calories + '\\n';\n  if (td.elevation_gain_m) text += '- Набор высоты: ' + td.elevation_gain_m + ' м\\n';\n  text += '\\nОтличная работа!';\n  text += '\\n\\nЕсли есть второй скриншот из другого приложения - отправь его в течение 3 минут, и я объединю данные.';\n}\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
             },
             "name": "Format Photo Response",
             "type": "n8n-nodes-base.function",
             "typeVersion": 1,
             "position": [
-                2840,
-                100
+                3440,
+                200
             ]
         },
         {
@@ -310,7 +314,7 @@
             "type": "n8n-nodes-base.telegram",
             "typeVersion": 1.2,
             "position": [
-                3040,
+                3640,
                 100
             ],
             "credentials": {
@@ -1084,6 +1088,172 @@
                     "name": "Supabase - Running Coach"
                 }
             }
+        },
+        {
+            "id": "prepare-merge-check",
+            "parameters": {
+                "functionCode": "const data = $('Parse Vision Response').first().json;\nconst threeMinAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();\n\nreturn [{\n  json: {\n    user_id: data.user_id,\n    chat_id: data.chat_id,\n    message_id: data.message_id,\n    recognized: data.recognized,\n    confidence: data.confidence,\n    training_data: data.training_data,\n    source_app: data.source_app,\n    response_text: data.response_text,\n    is_photo_training: data.is_photo_training,\n    threeMinAgo: threeMinAgo\n  }\n}];"
+            },
+            "name": "Prepare Merge Check",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                2440,
+                100
+            ]
+        },
+        {
+            "id": "find-recent-training",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "trainings",
+                "returnAll": false,
+                "limit": 1,
+                "filterType": "string",
+                "filterString": "=user_id=eq.{{ $json.user_id }}&source=eq.screenshot&screenshot_count=lt.2&created_at=gte.{{ $json.threeMinAgo }}&order=created_at.desc"
+            },
+            "name": "Find Recent Training",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                2640,
+                100
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "evaluate-merge",
+            "parameters": {
+                "functionCode": "const originalData = $('Prepare Merge Check').first().json;\nconst trainingData = originalData.training_data || {};\nconst userId = originalData.user_id;\nconst chatId = originalData.chat_id;\nconst messageId = originalData.message_id;\n\n// Check if Supabase returned a valid existing record\nconst lookupResult = items[0].json;\nconst hasExistingTraining = lookupResult && lookupResult.id;\n\nif (hasExistingTraining) {\n  // --- MERGE MODE ---\n  const existing = lookupResult;\n  const newData = trainingData;\n  const merged = {};\n\n  const numericFields = [\n    'distance_km', 'duration_seconds', 'avg_pace_seconds',\n    'avg_heart_rate', 'max_heart_rate', 'calories', 'elevation_gain_m'\n  ];\n\n  for (const field of numericFields) {\n    const existingVal = existing[field];\n    const newVal = newData ? newData[field] : undefined;\n\n    if (existingVal === null || existingVal === undefined) {\n      merged[field] = newVal || null;\n    } else if (newVal === null || newVal === undefined) {\n      merged[field] = existingVal;\n    } else {\n      if (field === 'distance_km') {\n        // Prefer value with more decimal precision\n        const existDec = (String(existingVal).split('.')[1] || '').length;\n        const newDec = (String(newVal).split('.')[1] || '').length;\n        merged[field] = newDec >= existDec ? newVal : existingVal;\n      } else {\n        // For other fields: prefer new value (user sent it for a reason)\n        merged[field] = newVal;\n      }\n    }\n  }\n\n  merged.type = (newData ? newData.type : null) || existing.type || 'easy_run';\n\n  // Recalculate pace if we have both distance and duration\n  if (merged.distance_km && merged.duration_seconds) {\n    merged.avg_pace_seconds = Math.round(merged.duration_seconds / merged.distance_km);\n  }\n\n  // Build summary of what changed\n  const changes = [];\n  for (const field of numericFields) {\n    const oldVal = existing[field];\n    const newVal = merged[field];\n    if (oldVal !== newVal && newVal !== null && newVal !== undefined) {\n      changes.push(field);\n    }\n  }\n\n  return [{\n    json: {\n      shouldMerge: true,\n      existingId: existing.id,\n      user_id: userId,\n      chat_id: chatId,\n      message_id: messageId,\n      distance_km: merged.distance_km,\n      duration_seconds: merged.duration_seconds,\n      avg_pace_seconds: merged.avg_pace_seconds,\n      avg_heart_rate: merged.avg_heart_rate,\n      max_heart_rate: merged.max_heart_rate,\n      calories: merged.calories,\n      elevation_gain_m: merged.elevation_gain_m,\n      type: merged.type,\n      screenshot_count: 2,\n      changes: changes\n    }\n  }];\n} else {\n  // --- NEW TRAINING MODE ---\n  return [{\n    json: {\n      shouldMerge: false,\n      user_id: userId,\n      chat_id: chatId,\n      message_id: messageId,\n      training_data: trainingData,\n      is_photo_training: originalData.is_photo_training,\n      response_text: originalData.response_text\n    }\n  }];\n}"
+            },
+            "name": "Evaluate Merge",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                2840,
+                100
+            ]
+        },
+        {
+            "id": "should-merge",
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "merge-check",
+                            "leftValue": "={{ $json.shouldMerge }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                }
+            },
+            "name": "Should Merge?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                3040,
+                100
+            ]
+        },
+        {
+            "id": "update-training",
+            "parameters": {
+                "operation": "update",
+                "tableId": "trainings",
+                "filterType": "manual",
+                "matchType": "allFilters",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "id",
+                            "condition": "eq",
+                            "keyValue": "={{ $json.existingId }}"
+                        }
+                    ]
+                },
+                "dataToSend": "defineBelow",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "distance_km",
+                            "fieldValue": "={{ $json.distance_km }}"
+                        },
+                        {
+                            "fieldId": "duration_seconds",
+                            "fieldValue": "={{ $json.duration_seconds }}"
+                        },
+                        {
+                            "fieldId": "avg_pace_seconds",
+                            "fieldValue": "={{ $json.avg_pace_seconds }}"
+                        },
+                        {
+                            "fieldId": "avg_heart_rate",
+                            "fieldValue": "={{ $json.avg_heart_rate }}"
+                        },
+                        {
+                            "fieldId": "max_heart_rate",
+                            "fieldValue": "={{ $json.max_heart_rate }}"
+                        },
+                        {
+                            "fieldId": "calories",
+                            "fieldValue": "={{ $json.calories }}"
+                        },
+                        {
+                            "fieldId": "elevation_gain_m",
+                            "fieldValue": "={{ $json.elevation_gain_m }}"
+                        },
+                        {
+                            "fieldId": "type",
+                            "fieldValue": "={{ $json.type }}"
+                        },
+                        {
+                            "fieldId": "screenshot_count",
+                            "fieldValue": "={{ $json.screenshot_count }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Update Training",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                3240,
+                0
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "format-merge-response",
+            "parameters": {
+                "functionCode": "const mergeData = $('Evaluate Merge').first().json;\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = 'Данные объединены с предыдущим скриншотом!\\n\\n';\ntext += 'Обновлённая тренировка:\\n';\ntext += '- Дистанция: ' + (mergeData.distance_km || 'н/д') + ' км\\n';\ntext += '- Время: ' + (mergeData.duration_seconds ? Math.floor(mergeData.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\ntext += '- Темп: ' + formatPace(mergeData.avg_pace_seconds) + '/км\\n';\nif (mergeData.avg_heart_rate) text += '- Пульс: ' + mergeData.avg_heart_rate + ' уд/мин\\n';\nif (mergeData.calories) text += '- Калории: ' + mergeData.calories + '\\n';\nif (mergeData.elevation_gain_m) text += '- Набор высоты: ' + mergeData.elevation_gain_m + ' м\\n';\n\nreturn [{\n  json: {\n    chat_id: mergeData.chat_id,\n    response_text: text\n  }\n}];"
+            },
+            "name": "Format Merge Response",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                3440,
+                0
+            ]
         }
     ],
     "connections": {
@@ -1197,7 +1367,7 @@
             "main": [
                 [
                     {
-                        "node": "Save Photo Training",
+                        "node": "Prepare Merge Check",
                         "type": "main",
                         "index": 0
                     }
@@ -1489,6 +1659,79 @@
                     }
                 ],
                 []
+            ]
+        },
+        "Prepare Merge Check": {
+            "main": [
+                [
+                    {
+                        "node": "Find Recent Training",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Find Recent Training": {
+            "main": [
+                [
+                    {
+                        "node": "Evaluate Merge",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Evaluate Merge": {
+            "main": [
+                [
+                    {
+                        "node": "Should Merge?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Should Merge?": {
+            "main": [
+                [
+                    {
+                        "node": "Update Training",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Save Photo Training",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Update Training": {
+            "main": [
+                [
+                    {
+                        "node": "Format Merge Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format Merge Response": {
+            "main": [
+                [
+                    {
+                        "node": "Send Photo Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
             ]
         }
     },

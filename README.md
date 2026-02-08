@@ -30,14 +30,13 @@ AI Running Coach - это Telegram бот с AI-тренером, который
 ## 📚 Документация
 
 ### Основные документы:
-- **[PROJECT-WORK-PLAN.md](docs/PROJECT-WORK-PLAN.md)** ← **ГЛАВНЫЙ** план работ (читать первым!)
-- [concept.md](docs/concept.md) - Полная концепция продукта
+- **[PROJECT-WORK-PLAN.md](docs/PROJECT-WORK-PLAN.md)** ← План работ и changelog (читать первым!)
+- [CHANGELOG.md](docs/CHANGELOG.md) - Подробная история версий
+- [concept.md](docs/concept.md) - Концепция продукта
 - [scientific-foundation.md](docs/scientific-foundation.md) - Научная база тренировок
-- [n8n-implementation-plan.md](docs/n8n-implementation-plan.md) - Технический план
 
 ### Дополнительно:
-- [chat-history.md](docs/chat-history.md) - История разработки концепции
-- [research-session-2026-01-26.md](docs/research-session-2026-01-26.md) - Исследовательская сессия
+- [docs/research-archive/](docs/research-archive/) - Архив исследований и дизайн-сессий
 
 ---
 
@@ -54,28 +53,22 @@ AI Running Coach - это Telegram бот с AI-тренером, который
 
 ```
 ai-running-coach/
-├── docs/                    # Вся документация
-│   ├── PROJECT-WORK-PLAN.md # ГЛАВНЫЙ план работ
-│   ├── concept.md
-│   └── ...
+├── docs/                         # Документация
+│   ├── PROJECT-WORK-PLAN.md      # План работ и changelog
+│   ├── CHANGELOG.md              # История версий
+│   ├── concept.md                # Концепция продукта
+│   ├── scientific-foundation.md  # Научная база тренировок
+│   ├── coach-knowledge/          # Справочные данные тренера
+│   └── research-archive/         # Архив исследований
 │
-├── n8n-workflows/           # N8N конфигурации (JSON)
-│   ├── workflow-main-chatbot.json
-│   ├── workflow-plan-generator.json
-│   └── workflow-training-logger.json
+├── n8n-workflows/                # N8N workflow (JSON)
+│   └── workflow-main-chatbot-v5.json  # Основной (и единственный) workflow
 │
-├── database/                # SQL схема и миграции
-│   ├── schema.sql
-│   ├── migrations/
-│   └── seeds/
+├── database/                     # SQL схема и миграции
+│   ├── schema.sql                # Полная актуальная схема (v2.0)
+│   └── migrations/               # Инкрементальные миграции
 │
-├── prompts/                 # AI System Prompts
-│   ├── onboarding-prompt.md
-│   ├── general-chat-prompt.md
-│   ├── plan-generation-prompt.md
-│   └── training-extraction-prompt.md
-│
-└── setup/                   # Инструкции по настройке
+└── setup/                        # Инструкции по настройке
     ├── SETUP-GUIDE.md
     └── API-KEYS-TEMPLATE.env
 ```
@@ -198,5 +191,5 @@ TBD
 
 ---
 
-**Последнее обновление:** 7 февраля 2026
-**Версия:** 0.1.4 (MVP работает)
+**Последнее обновление:** 8 февраля 2026
+**Версия:** 1.5 (MVP + стратегия + фото-мерж)

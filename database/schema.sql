@@ -1,8 +1,8 @@
 -- ============================================
 -- AI Running Coach - Database Schema
 -- Supabase PostgreSQL
--- Version: 1.0
--- Date: 26 January 2026
+-- Version: 2.0 (includes migrations 002-007)
+-- Date: 8 February 2026
 -- ============================================
 
 -- Enable UUID extension
@@ -33,34 +33,52 @@ CREATE TABLE users (
 
   -- Goal settings
   goal TEXT CHECK (goal IN ('general', 'race', 'improvement')),
-  race_distance TEXT CHECK (race_distance IN ('5k', '10k', 'half', 'marathon')),
+  race_distance TEXT,                -- '5k', '10k', 'half', 'marathon', '30k', etc. (no CHECK — any distance allowed)
+  race_distance_km DECIMAL(6,2),     -- Numeric distance in km for calculations
   race_date DATE,
-  target_time_seconds INTEGER, -- Target finish time in seconds
+  target_time_seconds INTEGER,       -- Target finish time in seconds
 
   -- Current fitness (from test or self-reported)
-  current_5k_pace_seconds INTEGER, -- Pace per km in seconds (e.g., 360 = 6:00/km)
-  current_weekly_km DECIMAL(5,1), -- Average weekly distance
+  current_5k_pace_seconds INTEGER,   -- Pace per km in seconds (e.g., 360 = 6:00/km)
+  current_weekly_km DECIMAL(5,1),    -- Average weekly distance
+
+  -- Heart rate data
+  resting_hr INTEGER CHECK (resting_hr > 30 AND resting_hr < 120),
+  max_hr INTEGER CHECK (max_hr > 120 AND max_hr < 230),
+
+  -- Lab testing (optional, from professional metabolic testing)
+  has_lab_testing BOOLEAN DEFAULT false,
+  vo2max DECIMAL(4,1) CHECK (vo2max > 20 AND vo2max < 100),  -- ml/kg/min
+  lthr INTEGER CHECK (lthr > 100 AND lthr < 220),             -- Lactate threshold HR
+
+  -- HR zones (from lab testing or calculated via Karvonen formula)
+  hr_zone1_max INTEGER,  -- Recovery (50-60% MaxHR)
+  hr_zone2_max INTEGER,  -- Aerobic (60-70% MaxHR)
+  hr_zone3_max INTEGER,  -- Tempo (70-80% MaxHR)
+  hr_zone4_max INTEGER,  -- Threshold (80-90% MaxHR)
+  hr_zone5_max INTEGER,  -- VO2max (90-100% MaxHR)
 
   -- Calculated pace zones (seconds per km)
-  zone1_pace_seconds INTEGER, -- Recovery/Easy (very slow)
-  zone2_pace_seconds INTEGER, -- Easy/Aerobic
-  zone3_pace_seconds INTEGER, -- Tempo/Threshold
-  zone4_pace_seconds INTEGER, -- Interval/VO2max
-  zone5_pace_seconds INTEGER, -- Sprint/Repetition
+  zone1_pace_seconds INTEGER,  -- Recovery/Easy (very slow)
+  zone2_pace_seconds INTEGER,  -- Easy/Aerobic
+  zone3_pace_seconds INTEGER,  -- Tempo/Threshold
+  zone4_pace_seconds INTEGER,  -- Interval/VO2max
+  zone5_pace_seconds INTEGER,  -- Sprint/Repetition
 
   -- Onboarding status
   onboarding_stage TEXT DEFAULT 'started' CHECK (onboarding_stage IN (
-    'started',            -- Just /start, no data yet
-    'profile',            -- Collecting basic info (level)
-    'physical',           -- Collecting physical data (age, height, weight)
-    'running_info',       -- Collecting running experience
-    'goal',               -- Setting pace
-    'goal_type',          -- Setting weekly_runs and goal type
-    'race_details',       -- For race goal: collecting date, distance, target time
-    'improvement_details', -- For improvement goal: collecting target result and timeline
-    'completed'           -- Ready to use
+    'started',
+    'profile',
+    'physical',
+    'heart_rate',
+    'running_info',
+    'lab_testing',
+    'training_freq',
+    'race_details',
+    'strategy_preview',
+    'completed'
   )),
-  onboarding_data JSONB DEFAULT '{}', -- Temporary storage for onboarding answers
+  onboarding_data JSONB DEFAULT '{}',
 
   -- Status
   is_active BOOLEAN DEFAULT true,
@@ -71,8 +89,44 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for fast Telegram ID lookup
 CREATE INDEX idx_users_telegram_id ON users(telegram_id);
+
+-- ============================================
+-- TABLE: training_strategies
+-- Long-term periodized training plans
+-- ============================================
+CREATE TABLE training_strategies (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+  goal_type TEXT NOT NULL CHECK (goal_type IN ('race', 'improvement', 'general')),
+  race_distance TEXT,
+  race_distance_km DECIMAL(6,2),
+  race_date DATE,
+  target_time_seconds INTEGER,
+
+  total_weeks INTEGER NOT NULL,
+  start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  end_date DATE,
+
+  -- Phases: [{name, display_name, start_week, end_week, duration_weeks, focus,
+  --           target_weekly_km_min, target_weekly_km_max, key_workouts, intensity_distribution}]
+  phases JSONB NOT NULL,
+
+  summary TEXT,
+
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned', 'replaced')),
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_training_strategies_user_id ON training_strategies(user_id);
+CREATE INDEX idx_training_strategies_status ON training_strategies(status);
+
+-- Only one active strategy per user
+CREATE UNIQUE INDEX idx_unique_active_strategy ON training_strategies(user_id)
+  WHERE status = 'active';
 
 -- ============================================
 -- TABLE: weekly_plans
@@ -82,70 +136,25 @@ CREATE TABLE weekly_plans (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
-  -- Week boundaries
   week_start DATE NOT NULL,
   week_end DATE NOT NULL,
-  week_number INTEGER, -- Week of training cycle (1, 2, 3, etc.)
+  week_number INTEGER,
 
-  -- Plan data (JSON structure)
   plan_data JSONB NOT NULL,
-  /*
-  Structure of plan_data:
-  {
-    "monday": {
-      "type": "easy_run",
-      "distance_km": 5,
-      "pace_range": "6:00-6:30",
-      "duration_minutes": 30,
-      "notes": "Easy pace, feel comfortable",
-      "completed": false,
-      "completed_at": null
-    },
-    "tuesday": {
-      "type": "rest",
-      "notes": "Full rest day",
-      "completed": false
-    },
-    "wednesday": {
-      "type": "intervals",
-      "distance_km": 8,
-      "warmup_km": 2,
-      "cooldown_km": 2,
-      "intervals": "5x1km @ 5:00 pace, 2 min recovery",
-      "notes": "VO2max workout",
-      "completed": false
-    },
-    ...
-  }
 
-  Training types:
-  - rest: Full rest day
-  - easy_run: Easy/recovery pace
-  - long_run: Long slow distance
-  - tempo: Tempo/threshold run
-  - intervals: Speed intervals
-  - fartlek: Varied pace play
-  - race: Race day
-  */
-
-  -- Summary stats (calculated)
   total_distance_km DECIMAL(5,1),
   total_sessions INTEGER,
   completed_sessions INTEGER DEFAULT 0,
 
-  -- Status
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned')),
 
-  -- Timestamps
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
 
-  -- Constraints
   CONSTRAINT valid_week CHECK (week_end > week_start),
   CONSTRAINT unique_user_week UNIQUE (user_id, week_start)
 );
 
--- Indexes
 CREATE INDEX idx_weekly_plans_user_id ON weekly_plans(user_id);
 CREATE INDEX idx_weekly_plans_week_start ON weekly_plans(week_start);
 CREATE INDEX idx_weekly_plans_status ON weekly_plans(status);
@@ -159,11 +168,9 @@ CREATE TABLE trainings (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   weekly_plan_id UUID REFERENCES weekly_plans(id) ON DELETE SET NULL,
 
-  -- When
   date DATE NOT NULL DEFAULT CURRENT_DATE,
-  day_of_week TEXT, -- 'monday', 'tuesday', etc.
+  day_of_week TEXT,
 
-  -- Training type
   type TEXT CHECK (type IN (
     'easy_run', 'long_run', 'tempo', 'intervals',
     'fartlek', 'recovery', 'race', 'other'
@@ -172,7 +179,7 @@ CREATE TABLE trainings (
   -- Core metrics
   distance_km DECIMAL(5,2) NOT NULL CHECK (distance_km > 0),
   duration_seconds INTEGER NOT NULL CHECK (duration_seconds > 0),
-  avg_pace_seconds INTEGER, -- Calculated: duration_seconds / distance_km
+  avg_pace_seconds INTEGER,
 
   -- Optional metrics
   avg_heart_rate INTEGER CHECK (avg_heart_rate > 0 AND avg_heart_rate < 250),
@@ -182,23 +189,25 @@ CREATE TABLE trainings (
 
   -- Subjective data
   feeling TEXT CHECK (feeling IN ('great', 'good', 'ok', 'tired', 'exhausted')),
-  rpe INTEGER CHECK (rpe >= 1 AND rpe <= 10), -- Rate of Perceived Exertion
+  rpe INTEGER CHECK (rpe >= 1 AND rpe <= 10),
   notes TEXT,
 
-  -- Was this planned?
-  is_planned BOOLEAN DEFAULT true, -- true = from weekly plan, false = spontaneous
-
-  -- Source of data
+  is_planned BOOLEAN DEFAULT true,
   source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'screenshot', 'voice')),
 
-  -- Timestamps
+  -- Multi-photo merge support (max 2 screenshots per training)
+  screenshot_count INTEGER NOT NULL DEFAULT 1,
+
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes
 CREATE INDEX idx_trainings_user_id ON trainings(user_id);
 CREATE INDEX idx_trainings_date ON trainings(date);
 CREATE INDEX idx_trainings_weekly_plan_id ON trainings(weekly_plan_id);
+
+-- Prevent duplicate trainings per day (same user, same date, same rounded distance)
+CREATE UNIQUE INDEX idx_unique_training_per_day
+  ON trainings(user_id, date, ROUND(distance_km));
 
 -- ============================================
 -- TABLE: chat_history
@@ -208,27 +217,18 @@ CREATE TABLE chat_history (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
-  -- Message data
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
   content TEXT NOT NULL,
 
-  -- Message type for filtering
   message_type TEXT DEFAULT 'general' CHECK (message_type IN (
-    'general',     -- Regular chat
-    'onboarding',  -- Onboarding conversation
-    'planning',    -- Plan generation
-    'logging',     -- Training logging
-    'feedback'     -- AI feedback on training
+    'general', 'onboarding', 'planning', 'logging', 'feedback'
   )),
 
-  -- Metadata
   telegram_message_id BIGINT,
 
-  -- Timestamp
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes
 CREATE INDEX idx_chat_history_user_id ON chat_history(user_id);
 CREATE INDEX idx_chat_history_created_at ON chat_history(created_at);
 CREATE INDEX idx_chat_history_message_type ON chat_history(message_type);
@@ -241,44 +241,35 @@ CREATE TABLE user_stats (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
-  -- All-time stats
   total_distance_km DECIMAL(8,2) DEFAULT 0,
   total_trainings INTEGER DEFAULT 0,
   total_duration_seconds INTEGER DEFAULT 0,
 
-  -- Current month
   month_distance_km DECIMAL(6,2) DEFAULT 0,
   month_trainings INTEGER DEFAULT 0,
 
-  -- Current week
   week_distance_km DECIMAL(5,2) DEFAULT 0,
   week_trainings INTEGER DEFAULT 0,
 
-  -- Streaks
   current_streak_days INTEGER DEFAULT 0,
   longest_streak_days INTEGER DEFAULT 0,
 
-  -- Personal bests
   pb_5k_seconds INTEGER,
   pb_10k_seconds INTEGER,
   pb_half_seconds INTEGER,
   pb_marathon_seconds INTEGER,
 
-  -- Last activity
   last_training_date DATE,
 
-  -- Timestamps
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index
 CREATE INDEX idx_user_stats_user_id ON user_stats(user_id);
 
 -- ============================================
 -- FUNCTIONS
 -- ============================================
 
--- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -287,7 +278,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Function to calculate pace from duration and distance
 CREATE OR REPLACE FUNCTION calculate_pace(duration_sec INTEGER, distance DECIMAL)
 RETURNS INTEGER AS $$
 BEGIN
@@ -298,7 +288,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Function to format seconds as pace string (e.g., 360 -> "6:00")
 CREATE OR REPLACE FUNCTION format_pace(seconds INTEGER)
 RETURNS TEXT AS $$
 BEGIN
@@ -317,19 +306,21 @@ $$ language 'plpgsql';
 -- TRIGGERS
 -- ============================================
 
--- Auto-update updated_at for users
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Auto-update updated_at for weekly_plans
 CREATE TRIGGER update_weekly_plans_updated_at
   BEFORE UPDATE ON weekly_plans
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Auto-calculate avg_pace for trainings
+CREATE TRIGGER update_training_strategies_updated_at
+  BEFORE UPDATE ON training_strategies
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 CREATE OR REPLACE FUNCTION calculate_training_pace()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -345,56 +336,13 @@ CREATE TRIGGER calculate_training_pace_trigger
 
 -- ============================================
 -- ROW LEVEL SECURITY (RLS)
--- For Supabase - users can only access their own data
 -- ============================================
 
--- Enable RLS
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE training_strategies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trainings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_stats ENABLE ROW LEVEL SECURITY;
 
--- Note: RLS policies should be configured based on your auth setup
--- For N8N access, you'll use service_role key which bypasses RLS
-
--- ============================================
--- SAMPLE DATA FOR TESTING (optional)
--- ============================================
-
--- Uncomment to insert test user:
-/*
-INSERT INTO users (telegram_id, username, first_name, level, goal, onboarding_stage)
-VALUES (123456789, 'test_user', 'Test', 'intermediate', 'general', 'completed');
-*/
-
--- ============================================
--- USEFUL QUERIES
--- ============================================
-
--- Get user with their current week plan:
-/*
-SELECT u.*, wp.plan_data, wp.status as plan_status
-FROM users u
-LEFT JOIN weekly_plans wp ON u.id = wp.user_id
-  AND wp.status = 'active'
-  AND CURRENT_DATE BETWEEN wp.week_start AND wp.week_end
-WHERE u.telegram_id = $1;
-*/
-
--- Get recent trainings for user:
-/*
-SELECT * FROM trainings
-WHERE user_id = $1
-ORDER BY date DESC
-LIMIT 10;
-*/
-
--- Get chat history for context (last 20 messages):
-/*
-SELECT role, content, created_at
-FROM chat_history
-WHERE user_id = $1
-ORDER BY created_at DESC
-LIMIT 20;
-*/
+-- Note: N8N uses service_role key which bypasses RLS
