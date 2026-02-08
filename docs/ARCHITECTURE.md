@@ -100,11 +100,11 @@ Get Active Plan (Supabase: weekly_plans, status='active')
 
 | Стадия | Что спрашивает | Что извлекает |
 |---|---|---|
-| `started` | Уровень (новичок/любитель/продвинутый) | — |
+| `started` | Описание функций бота + уровень (новичок/любитель/продвинутый) | — |
 | `profile` | Возраст | level |
 | `physical` | Рост и вес | age |
 | `heart_rate` | Пульс покоя | height_cm, weight_kg |
-| `running_info` | Темп на 5 км | resting_hr |
+| `running_info` | Темп на 5 км (если пульс неизвестен — null, не переспрашивает) | resting_hr (nullable) |
 | `lab_testing` | Есть ли VO2max тест? | current_5k_pace_seconds |
 | `training_freq` | Дней в неделю (3-6) | has_lab_testing, vo2max, lthr |
 | `race_details` | Дистанция, дата, цель | weekly_runs, race_distance, race_date, target_time_seconds |
@@ -118,7 +118,7 @@ Get Active Plan (Supabase: weekly_plans, status='active')
    - Показывает текущую фазу, прогресс, что впереди
 
 2. **Генерация плана** (regex: `план|состав|давай|начн|готов|тренировк|недел`):
-   - Составляет план на неделю с учётом текущей фазы стратегии
+   - Составляет план на неделю СТРОГО по `weekly_runs` (количество тренировочных дней)
    - Включает контекст: тренировки, план, стратегия
 
 3. **Общий чат** (всё остальное):
@@ -145,7 +145,7 @@ Get Active Plan (Supabase: weekly_plans, status='active')
 - Использовать `\n` для переносов строк, разбивать на абзацы и пункты
 - При упоминании темпа бега — всегда добавлять скорость для дорожки в скобках: `6:00/км (10.0 км/ч)`
 
-**Extract Response** — парсит JSON, достаёт `extracted` (данные для БД) и `response` (текст для Telegram). Дополнительно убирает markdown-разметку если она проскочила (`**bold**` → `bold`).
+**Extract Response** — парсит JSON, достаёт `extracted` (данные для БД) и `response` (текст для Telegram). Убирает markdown-разметку: `#` заголовки, `**bold**`, `*italic*`, `_`, `` ` ``, `[]`.
 
 ---
 
