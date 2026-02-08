@@ -1254,6 +1254,74 @@
                 3440,
                 0
             ]
+        },
+        {
+            "id": "prepare-text-chat-history",
+            "parameters": {
+                "functionCode": "const checkUser = $('Check User').first().json;\nconst userId = checkUser.user_id;\nconst userMessage = checkUser.message_text;\n\n// Get bot response - try Extract Response first\nlet botResponse = '';\ntry {\n  botResponse = $('Extract Response').first().json.response_text || '';\n} catch(e) {\n  botResponse = '';\n}\n\nif (!userId || !userMessage) return [];\n\nconst results = [];\n\n// Save user message\nresults.push({\n  json: {\n    user_id: userId,\n    role: 'user',\n    content: userMessage,\n    message_type: 'general'\n  }\n});\n\n// Save bot response\nif (botResponse) {\n  results.push({\n    json: {\n      user_id: userId,\n      role: 'assistant',\n      content: botResponse,\n      message_type: 'general'\n    }\n  });\n}\n\nreturn results;"
+            },
+            "name": "Prepare Text Chat History",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                2200,
+                600
+            ]
+        },
+        {
+            "id": "prepare-photo-chat-history",
+            "parameters": {
+                "functionCode": "const checkUser = $('Check User').first().json;\nconst userId = checkUser.user_id;\nconst caption = checkUser.message_text || '';\n\n// Determine bot response based on which path we came from\nlet botResponse = '';\ntry {\n  // Try merge response first\n  botResponse = $('Evaluate Merge').first().json.shouldMerge\n    ? 'Данные объединены с предыдущим скриншотом.'\n    : '';\n} catch(e) {}\n\nif (!botResponse) {\n  try {\n    const td = $('Parse Vision Response').first().json.training_data;\n    if (td) {\n      botResponse = 'Тренировка записана: ' + (td.distance_km || '?') + ' км';\n      if (td.duration_seconds) botResponse += ', ' + Math.round(td.duration_seconds/60) + ' мин';\n    }\n  } catch(e) {\n    botResponse = 'Фото обработано';\n  }\n}\n\nif (!userId) return [];\n\nconst results = [];\n\nresults.push({\n  json: {\n    user_id: userId,\n    role: 'user',\n    content: caption ? '[Фото] ' + caption : '[Фото тренировки]',\n    message_type: 'logging'\n  }\n});\n\nresults.push({\n  json: {\n    user_id: userId,\n    role: 'assistant',\n    content: botResponse,\n    message_type: 'logging'\n  }\n});\n\nreturn results;"
+            },
+            "name": "Prepare Photo Chat History",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                3840,
+                100
+            ]
+        },
+        {
+            "id": "save-chat-history",
+            "parameters": {
+                "operation": "create",
+                "tableId": "chat_history",
+                "dataToSend": "defineBelow",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "user_id",
+                            "fieldValue": "={{ $json.user_id }}"
+                        },
+                        {
+                            "fieldId": "role",
+                            "fieldValue": "={{ $json.role }}"
+                        },
+                        {
+                            "fieldId": "content",
+                            "fieldValue": "={{ $json.content }}"
+                        },
+                        {
+                            "fieldId": "message_type",
+                            "fieldValue": "={{ $json.message_type }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Save Chat History",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                3840,
+                400
+            ],
+            "onError": "continueRegularOutput",
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
         }
     ],
     "connections": {
@@ -1543,6 +1611,11 @@
                         "node": "Is Plan Generation?",
                         "type": "main",
                         "index": 0
+                    },
+                    {
+                        "node": "Prepare Text Chat History",
+                        "type": "main",
+                        "index": 0
                     }
                 ]
             ]
@@ -1728,6 +1801,39 @@
                 [
                     {
                         "node": "Send Photo Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Text Chat History": {
+            "main": [
+                [
+                    {
+                        "node": "Save Chat History",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send Photo Response": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Photo Chat History",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Photo Chat History": {
+            "main": [
+                [
+                    {
+                        "node": "Save Chat History",
                         "type": "main",
                         "index": 0
                     }
