@@ -290,13 +290,13 @@
         {
             "id": "format-photo-response",
             "parameters": {
-                "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\n// Check if save failed (duplicate)\nconst saveResult = items[0].json;\nconst isDuplicate = saveResult.error || saveResult.code === '23505';\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '';\nif (isDuplicate) {\n  text = 'Эта тренировка уже записана! Похожая запись за сегодня уже есть в базе.';\n} else {\n  text = 'Тренировка записана!\\n\\n';\n  text += '- Дистанция: ' + (td.distance_km || 'н/д') + ' км\\n';\n  text += '- Время: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\n  text += '- Темп: ' + formatPace(td.avg_pace_seconds) + '/км\\n';\n  if (td.avg_heart_rate) text += '- Пульс: ' + td.avg_heart_rate + ' уд/мин\\n';\n  if (td.calories) text += '- Калории: ' + td.calories + '\\n';\n  if (td.elevation_gain_m) text += '- Набор высоты: ' + td.elevation_gain_m + ' м\\n';\n  text += '\\nОтличная работа!';\n  text += '\\n\\nЕсли есть второй скриншот из другого приложения - отправь его в течение 3 минут, и я объединю данные.';\n}\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
+                "functionCode": "const parseData = $('Parse Vision Response').first().json;\nconst td = parseData.training_data || {};\n\n// Check if save failed (duplicate)\nconst saveResult = items[0].json;\nconst isDuplicate = saveResult.error || saveResult.code === '23505';\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = '';\nif (isDuplicate) {\n  text = 'Эта тренировка уже записана! Похожая запись за сегодня уже есть в базе.';\n} else {\n  text = 'Тренировка записана!\\n\\n';\n  text += '- Дистанция: ' + (td.distance_km || 'н/д') + ' км\\n';\n  text += '- Время: ' + (td.duration_seconds ? Math.floor(td.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\n  text += '- Темп: ' + formatPace(td.avg_pace_seconds) + '/км\\n';\n  if (td.avg_heart_rate) text += '- Пульс: ' + td.avg_heart_rate + ' уд/мин\\n';\n  if (td.calories) text += '- Калории: ' + td.calories + '\\n';\n  if (td.elevation_gain_m) text += '- Набор высоты: ' + td.elevation_gain_m + ' м\\n';\n  text += '\\nОтличная работа!';\n  text += '\\n\\nЕсли есть второй скриншот из другого приложения - отправь его в течение 3 минут, и я объединю данные.';\n}\n\n// Weekly progress\ntry {\n  const weekTrainings = $('Get Week Trainings (Photo)').all().filter(t => t.json && t.json.id);\n  const checkUser = $('Check User').first().json;\n  const targetSessions = checkUser.weekly_runs || 3;\n\n  const totalSessions = weekTrainings.length;\n  let totalKm = 0;\n  weekTrainings.forEach(t => { totalKm += parseFloat(t.json.distance_km) || 0; });\n\n  let progress = '\\n\\nНа этой неделе: ' + totalSessions + '/' + targetSessions + ' тренировок';\n  progress += ', ' + totalKm.toFixed(1) + ' км';\n\n  try {\n    const strategyItem = $('Get Photo Strategy').first().json;\n    if (strategyItem && strategyItem.phases) {\n      const phases = typeof strategyItem.phases === 'string'\n        ? JSON.parse(strategyItem.phases) : strategyItem.phases;\n      const startDate = new Date(strategyItem.start_date);\n      const now = new Date();\n      const weeksSince = Math.max(1, Math.ceil((now - startDate) / (7*24*60*60*1000)));\n      let currentPhase = null;\n      for (const p of phases) {\n        if (weeksSince >= p.start_week && weeksSince <= p.end_week) {\n          currentPhase = p; break;\n        }\n      }\n      if (currentPhase && currentPhase.target_weekly_km_min) {\n        progress += ' (цель: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км)';\n      }\n    }\n  } catch(e2) {}\n\n  text += progress;\n} catch(e) {}\n\nreturn [{\n  json: {\n    chat_id: parseData.chat_id,\n    response_text: text\n  }\n}];"
             },
             "name": "Format Photo Response",
             "type": "n8n-nodes-base.function",
             "typeVersion": 1,
             "position": [
-                3440,
+                3540,
                 200
             ]
         },
@@ -314,7 +314,7 @@
             "type": "n8n-nodes-base.telegram",
             "typeVersion": 1.2,
             "position": [
-                3640,
+                3740,
                 100
             ],
             "credentials": {
@@ -1245,13 +1245,13 @@
         {
             "id": "format-merge-response",
             "parameters": {
-                "functionCode": "const mergeData = $('Evaluate Merge').first().json;\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = 'Данные объединены с предыдущим скриншотом!\\n\\n';\ntext += 'Обновлённая тренировка:\\n';\ntext += '- Дистанция: ' + (mergeData.distance_km || 'н/д') + ' км\\n';\ntext += '- Время: ' + (mergeData.duration_seconds ? Math.floor(mergeData.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\ntext += '- Темп: ' + formatPace(mergeData.avg_pace_seconds) + '/км\\n';\nif (mergeData.avg_heart_rate) text += '- Пульс: ' + mergeData.avg_heart_rate + ' уд/мин\\n';\nif (mergeData.calories) text += '- Калории: ' + mergeData.calories + '\\n';\nif (mergeData.elevation_gain_m) text += '- Набор высоты: ' + mergeData.elevation_gain_m + ' м\\n';\n\nreturn [{\n  json: {\n    chat_id: mergeData.chat_id,\n    response_text: text\n  }\n}];"
+                "functionCode": "const mergeData = $('Evaluate Merge').first().json;\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nlet text = 'Данные объединены с предыдущим скриншотом!\\n\\n';\ntext += 'Обновлённая тренировка:\\n';\ntext += '- Дистанция: ' + (mergeData.distance_km || 'н/д') + ' км\\n';\ntext += '- Время: ' + (mergeData.duration_seconds ? Math.floor(mergeData.duration_seconds/60) + ' мин' : 'н/д') + '\\n';\ntext += '- Темп: ' + formatPace(mergeData.avg_pace_seconds) + '/км\\n';\nif (mergeData.avg_heart_rate) text += '- Пульс: ' + mergeData.avg_heart_rate + ' уд/мин\\n';\nif (mergeData.calories) text += '- Калории: ' + mergeData.calories + '\\n';\nif (mergeData.elevation_gain_m) text += '- Набор высоты: ' + mergeData.elevation_gain_m + ' м\\n';\n\n// Weekly progress\ntry {\n  const weekTrainings = $('Get Week Trainings (Merge)').all().filter(t => t.json && t.json.id);\n  const checkUser = $('Check User').first().json;\n  const targetSessions = checkUser.weekly_runs || 3;\n\n  const totalSessions = weekTrainings.length;\n  let totalKm = 0;\n  weekTrainings.forEach(t => { totalKm += parseFloat(t.json.distance_km) || 0; });\n\n  let progress = '\\n\\nНа этой неделе: ' + totalSessions + '/' + targetSessions + ' тренировок';\n  progress += ', ' + totalKm.toFixed(1) + ' км';\n\n  try {\n    const strategyItem = $('Get Photo Strategy (Merge)').first().json;\n    if (strategyItem && strategyItem.phases) {\n      const phases = typeof strategyItem.phases === 'string'\n        ? JSON.parse(strategyItem.phases) : strategyItem.phases;\n      const startDate = new Date(strategyItem.start_date);\n      const now = new Date();\n      const weeksSince = Math.max(1, Math.ceil((now - startDate) / (7*24*60*60*1000)));\n      let currentPhase = null;\n      for (const p of phases) {\n        if (weeksSince >= p.start_week && weeksSince <= p.end_week) {\n          currentPhase = p; break;\n        }\n      }\n      if (currentPhase && currentPhase.target_weekly_km_min) {\n        progress += ' (цель: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км)';\n      }\n    }\n  } catch(e2) {}\n\n  text += progress;\n} catch(e) {}\n\nreturn [{\n  json: {\n    chat_id: mergeData.chat_id,\n    response_text: text\n  }\n}];"
             },
             "name": "Format Merge Response",
             "type": "n8n-nodes-base.function",
             "typeVersion": 1,
             "position": [
-                3440,
+                3540,
                 0
             ]
         },
@@ -1277,7 +1277,7 @@
             "type": "n8n-nodes-base.function",
             "typeVersion": 1,
             "position": [
-                3840,
+                3940,
                 100
             ]
         },
@@ -1312,10 +1312,108 @@
             "type": "n8n-nodes-base.supabase",
             "typeVersion": 1,
             "position": [
-                3840,
+                4140,
                 400
             ],
             "onError": "continueRegularOutput",
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "get-week-trainings-photo",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "trainings",
+                "returnAll": true,
+                "filterType": "string",
+                "RLCfilterString": "=user_id=eq.{{ $('Check User').first().json.user_id }}&date=gte.{{ $now.minus({days: $now.weekday - 1}).toFormat('yyyy-MM-dd') }}&order=date.desc"
+            },
+            "name": "Get Week Trainings (Photo)",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                3340,
+                200
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "get-photo-strategy",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "training_strategies",
+                "returnAll": false,
+                "limit": 1,
+                "filterType": "string",
+                "RLCfilterString": "=user_id=eq.{{ $('Check User').first().json.user_id }}&status=eq.active&order=created_at.desc"
+            },
+            "name": "Get Photo Strategy",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                3440,
+                200
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "get-week-trainings-merge",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "trainings",
+                "returnAll": true,
+                "filterType": "string",
+                "RLCfilterString": "=user_id=eq.{{ $('Check User').first().json.user_id }}&date=gte.{{ $now.minus({days: $now.weekday - 1}).toFormat('yyyy-MM-dd') }}&order=date.desc"
+            },
+            "name": "Get Week Trainings (Merge)",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                3340,
+                0
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "get-photo-strategy-merge",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "training_strategies",
+                "returnAll": false,
+                "limit": 1,
+                "filterType": "string",
+                "RLCfilterString": "=user_id=eq.{{ $('Check User').first().json.user_id }}&status=eq.active&order=created_at.desc"
+            },
+            "name": "Get Photo Strategy (Merge)",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                3440,
+                0
+            ],
+            "alwaysOutputData": true,
             "credentials": {
                 "supabaseApi": {
                     "id": "CJ3Z1MvRt6BxblaB",
@@ -1453,7 +1551,7 @@
             "main": [
                 [
                     {
-                        "node": "Format Photo Response",
+                        "node": "Get Week Trainings (Photo)",
                         "type": "main",
                         "index": 0
                     }
@@ -1789,7 +1887,7 @@
             "main": [
                 [
                     {
-                        "node": "Format Merge Response",
+                        "node": "Get Week Trainings (Merge)",
                         "type": "main",
                         "index": 0
                     }
@@ -1834,6 +1932,50 @@
                 [
                     {
                         "node": "Save Chat History",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Week Trainings (Photo)": {
+            "main": [
+                [
+                    {
+                        "node": "Get Photo Strategy",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Photo Strategy": {
+            "main": [
+                [
+                    {
+                        "node": "Format Photo Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Week Trainings (Merge)": {
+            "main": [
+                [
+                    {
+                        "node": "Get Photo Strategy (Merge)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Photo Strategy (Merge)": {
+            "main": [
+                [
+                    {
+                        "node": "Format Merge Response",
                         "type": "main",
                         "index": 0
                     }

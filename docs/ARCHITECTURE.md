@@ -1,6 +1,6 @@
 # Архитектура AI Running Coach
 
-**Версия:** 1.5 (8 февраля 2026)
+**Версия:** 1.6 (8 февраля 2026)
 
 Этот документ описывает всю логику бота. Используйте его для понимания системы, дебага и будущей миграции с n8n на код (Node.js/Python).
 
@@ -42,14 +42,16 @@ Download Photo (Telegram API)
         → Parse Vision Response
           → Training Recognized?
             [yes] → Merge Check (есть ли тренировка за последние 3 мин?)
-              [merge] → Update Training → "Данные объединены!"
-              [new]   → Save Photo Training → "Тренировка записана!"
+              [merge] → Update Training → Get Week Trainings (Merge) → Get Photo Strategy (Merge) → Format Merge Response (+ прогресс) → "Данные объединены! На этой неделе: X/Y тренировок, Z км (цель: A-B км)"
+              [new]   → Save Photo Training → Get Week Trainings (Photo) → Get Photo Strategy → Format Photo Response (+ прогресс) → "Тренировка записана! На этой неделе: X/Y тренировок, Z км (цель: A-B км)"
             [no]  → "Не удалось распознать"
 ```
 
 **Vision промпт:** "Распознай тренировку с фото. Верни JSON: {recognized, data: {distance_km, duration_seconds, avg_pace_seconds, avg_heart_rate, type}, response}"
 
 **Логика мерджа:** Если у пользователя есть тренировка с source='screenshot' и screenshot_count < 2, созданная менее 3 минут назад — объединяем данные (заполняем пустые поля, для distance_km берём более точное значение).
+
+**Прогресс за неделю:** После сохранения/мерджа тренировки бот показывает прогресс: количество тренировок (X из weekly_runs) и общий километраж за неделю. Если есть активная стратегия — добавляет цель по км из текущей фазы (target_weekly_km_min-max).
 
 ---
 
