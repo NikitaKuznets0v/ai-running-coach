@@ -1,0 +1,453 @@
+{
+    "name": "AI Running Coach - E2E Tests",
+    "nodes": [
+        {
+            "id": "manual-trigger",
+            "parameters": {},
+            "name": "Manual Trigger",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [240, 400]
+        },
+        {
+            "id": "generate-personas",
+            "parameters": {
+                "functionCode": "const personas = [\n  {\n    test_id: 900000001,\n    name: \"Новичок_Чёткий\",\n    expected: { level: \"beginner\", age: 28, height_cm: 175, weight_kg: 72, resting_hr: null, current_5k_pace_seconds: 420, has_lab_testing: false, weekly_runs: 3, goal: \"race\", race_distance: \"5k\", race_distance_km: 5 },\n    messages: [\n      \"/start\",\n      \"Новичок\",\n      \"28 лет\",\n      \"Рост 175, вес 72\",\n      \"Не знаю\",\n      \"35 минут примерно\",\n      \"Нет\",\n      \"3 дня\",\n      \"Хочу пробежать 5 км через 2 месяца за 28 минут\"\n    ]\n  },\n  {\n    test_id: 900000002,\n    name: \"Любитель_Чёткий\",\n    expected: { level: \"intermediate\", age: 35, height_cm: 180, weight_kg: 78, resting_hr: 62, current_5k_pace_seconds: 330, has_lab_testing: false, weekly_runs: 4, goal: \"improvement\" },\n    messages: [\n      \"/start\",\n      \"Любитель\",\n      \"35\",\n      \"180 см, 78 кг\",\n      \"62 удара в минуту\",\n      \"5:30 на километр, 5 км за 27:30\",\n      \"Нет, не делал\",\n      \"4\",\n      \"Хочу улучшить время на 10 км, сейчас бегу за 55 минут\"\n    ]\n  },\n  {\n    test_id: 900000003,\n    name: \"Продвинутый_С_Тестами\",\n    expected: { level: \"advanced\", age: 32, height_cm: 178, weight_kg: 68, resting_hr: 48, current_5k_pace_seconds: 270, has_lab_testing: true, weekly_runs: 5, goal: \"race\" },\n    messages: [\n      \"/start\",\n      \"Продвинутый\",\n      \"32 года\",\n      \"178/68\",\n      \"Пульс покоя 48\",\n      \"5 км за 22:30\",\n      \"VO2max 58 мл/кг/мин, ПАНО на пульсе 172\",\n      \"5-6 дней\",\n      \"Полумарафон через 3 месяца, цель 1:35\"\n    ]\n  },\n  {\n    test_id: 900000004,\n    name: \"Естественный_Язык\",\n    expected: { level: \"beginner\", age: 42, height_cm: 165, weight_kg: 80 },\n    messages: [\n      \"/start\",\n      \"Ну я так, начинающий бегун\",\n      \"Мне сорок два\",\n      \"Невысокий, 165 где-то, вешу 80\",\n      \"Понятия не имею какой пульс\",\n      \"Медленно бегаю, минут 40 наверное пятёрку\",\n      \"Нет никаких тестов\",\n      \"Ну раза 3 в неделю могу\",\n      \"Просто хочу бегать для здоровья, без забегов\"\n    ]\n  },\n  {\n    test_id: 900000005,\n    name: \"Короткие_Ответы\",\n    expected: { level: \"intermediate\", age: 29, height_cm: 182, weight_kg: 75, weekly_runs: 4 },\n    messages: [\n      \"/start\",\n      \"любитель\",\n      \"29\",\n      \"182/75\",\n      \"58\",\n      \"26 мин\",\n      \"нет\",\n      \"4\",\n      \"10км за 50 мин через 2 мес\"\n    ]\n  },\n  {\n    test_id: 900000006,\n    name: \"Болтливый_Новичок\",\n    expected: { level: \"beginner\", age: 55, height_cm: 170, weight_kg: 90 },\n    messages: [\n      \"/start\",\n      \"Я совсем новичок в беге, начала заниматься пару недель назад, до этого вообще не бегала\",\n      \"Мне 55 лет, надеюсь не поздно начинать\",\n      \"Рост у меня 170 сантиметров, а вешу много — 90 кг, хочу похудеть собственно\",\n      \"Пульс не мерила никогда, часов нет\",\n      \"Даже не знаю, 5 км не пробовала, наверное минут 45 если получится\",\n      \"Нет конечно, какие тесты\",\n      \"Могу 3 раза, больше тяжело будет наверное\",\n      \"Хочу просто бегать регулярно и похудеть, забеги пока не планирую\"\n    ]\n  },\n  {\n    test_id: 900000007,\n    name: \"Полумарафон_Любитель\",\n    expected: { level: \"intermediate\", age: 38, weekly_runs: 4, goal: \"race\", race_distance: \"half_marathon\" },\n    messages: [\n      \"/start\",\n      \"Любитель, бегаю 2 года\",\n      \"38 лет\",\n      \"176 см, 73 кг\",\n      \"Пульс покоя 56\",\n      \"5 км за 25 минут\",\n      \"Нет\",\n      \"4 дня в неделю\",\n      \"Готовлюсь к полумарафону 15 мая, хочу выбежать из 2 часов\"\n    ]\n  },\n  {\n    test_id: 900000008,\n    name: \"Марафон_Продвинутый\",\n    expected: { level: \"advanced\", age: 30, weekly_runs: 6, goal: \"race\", race_distance: \"marathon\" },\n    messages: [\n      \"/start\",\n      \"Продвинутый бегун\",\n      \"30\",\n      \"183, 72\",\n      \"45\",\n      \"19:30 на 5 км\",\n      \"VO2max 62\",\n      \"6 дней\",\n      \"Марафон в октябре, цель sub-3\"\n    ]\n  },\n  {\n    test_id: 900000009,\n    name: \"Для_Здоровья\",\n    expected: { level: \"beginner\", age: 45, weekly_runs: 3, goal: \"general\" },\n    messages: [\n      \"/start\",\n      \"Новичок\",\n      \"45\",\n      \"172/82\",\n      \"Не знаю\",\n      \"Не замерял, бегу медленно\",\n      \"Нет\",\n      \"3\",\n      \"Бегаю для здоровья, ни к каким забегам не готовлюсь\"\n    ]\n  },\n  {\n    test_id: 900000010,\n    name: \"Улучшение_Результатов\",\n    expected: { level: \"intermediate\", age: 33, weekly_runs: 5, goal: \"improvement\" },\n    messages: [\n      \"/start\",\n      \"Любитель\",\n      \"33 года\",\n      \"179 см, 74 кг\",\n      \"55 ударов\",\n      \"5 км за 24:00\",\n      \"Нет\",\n      \"5 раз в неделю\",\n      \"Хочу улучшить свои результаты на 5 и 10 км, личники давно не обновлял\"\n    ]\n  }\n];\n\nreturn personas.map(p => ({ json: p }));"
+            },
+            "name": "Generate Test Personas",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [480, 400]
+        },
+        {
+            "id": "outer-split",
+            "parameters": {
+                "batchSize": 1,
+                "options": {}
+            },
+            "name": "Loop Over Personas",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [720, 400]
+        },
+        {
+            "id": "prepare-messages",
+            "parameters": {
+                "functionCode": "const persona = items[0].json;\nconst messages = persona.messages;\nconst result = [];\n\nfor (let i = 0; i < messages.length; i++) {\n  result.push({\n    json: {\n      test_id: persona.test_id,\n      name: persona.name,\n      expected: persona.expected,\n      messageIndex: i,\n      currentMessage: messages[i],\n      totalMessages: messages.length\n    }\n  });\n}\n\nreturn result;"
+            },
+            "name": "Prepare Messages",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [960, 400]
+        },
+        {
+            "id": "inner-split",
+            "parameters": {
+                "batchSize": 1,
+                "options": {}
+            },
+            "name": "Loop Over Messages",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [1200, 400]
+        },
+        {
+            "id": "send-to-webhook",
+            "parameters": {
+                "method": "POST",
+                "url": "https://n8n.kube.kontur.host/webhook/e2e-test-entry",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"update_id\": {{ 999000 + $json.messageIndex }},\n  \"message\": {\n    \"message_id\": {{ $json.messageIndex }},\n    \"from\": {\n      \"id\": {{ $json.test_id }},\n      \"is_bot\": false,\n      \"first_name\": \"Тест\",\n      \"username\": \"test_runner_{{ $json.test_id }}\"\n    },\n    \"chat\": {\n      \"id\": {{ $json.test_id }},\n      \"type\": \"private\"\n    },\n    \"date\": {{ Math.floor(Date.now()/1000) }},\n    \"text\": {{ JSON.stringify($json.currentMessage) }}\n  }\n}",
+                "options": {
+                    "timeout": 30000
+                }
+            },
+            "name": "Send to Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [1440, 400],
+            "onError": "continueRegularOutput"
+        },
+        {
+            "id": "wait-between-messages",
+            "parameters": {
+                "amount": 5,
+                "unit": "seconds"
+            },
+            "name": "Wait 5s Between Messages",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [1680, 400]
+        },
+        {
+            "id": "log-message-sent",
+            "parameters": {
+                "functionCode": "// Pass data back to inner loop\nconst prev = $('Loop Over Messages').first().json;\nreturn [{ json: prev }];"
+            },
+            "name": "Continue Inner Loop",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [1920, 400]
+        },
+        {
+            "id": "wait-after-onboarding",
+            "parameters": {
+                "amount": 15,
+                "unit": "seconds"
+            },
+            "name": "Wait 15s After Onboarding",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1.1,
+            "position": [1200, 640]
+        },
+        {
+            "id": "restore-persona-data",
+            "parameters": {
+                "functionCode": "// After wait, restore the persona data from the outer loop\nconst persona = $('Loop Over Personas').first().json;\nreturn [{ json: persona }];"
+            },
+            "name": "Restore Persona Data",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [1440, 640]
+        },
+        {
+            "id": "get-test-user",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "users",
+                "returnAll": false,
+                "limit": 1,
+                "filterType": "manual",
+                "matchType": "allFilters",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "telegram_id",
+                            "condition": "eq",
+                            "keyValue": "={{ $json.test_id }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Get Test User",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [1680, 640],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "prepare-strategy-query",
+            "parameters": {
+                "functionCode": "const persona = $('Restore Persona Data').first().json;\nconst user = items[0].json;\n\n// Pass both user data and persona info forward\nreturn [{\n  json: {\n    user_id: user.id || null,\n    test_id: persona.test_id,\n    name: persona.name,\n    expected: persona.expected,\n    user_data: user\n  }\n}];"
+            },
+            "name": "Prepare Strategy Query",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [1920, 640]
+        },
+        {
+            "id": "get-test-strategy",
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "training_strategies",
+                "returnAll": false,
+                "limit": 1,
+                "filterType": "manual",
+                "matchType": "allFilters",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "user_id",
+                            "condition": "eq",
+                            "keyValue": "={{ $json.user_id }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Get Test Strategy",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [2160, 640],
+            "alwaysOutputData": true,
+            "credentials": {
+                "supabaseApi": {
+                    "id": "CJ3Z1MvRt6BxblaB",
+                    "name": "Supabase - Running Coach"
+                }
+            }
+        },
+        {
+            "id": "compare-results",
+            "parameters": {
+                "functionCode": "const queryData = $('Prepare Strategy Query').first().json;\nconst user = queryData.user_data;\nconst expected = queryData.expected;\nconst testName = queryData.name;\nconst testId = queryData.test_id;\n\n// Get strategy data if available\nconst strategy = items[0].json;\nconst hasStrategy = strategy && strategy.id;\n\nconst checks = {};\nlet checkCount = 0;\nlet passCount = 0;\n\nfor (const [key, expectedVal] of Object.entries(expected)) {\n  if (expectedVal !== undefined) {\n    const actualVal = user[key];\n    // Loose comparison for type coercion (string \"28\" == number 28)\n    const passed = actualVal == expectedVal;\n    checks[key] = {\n      expected: expectedVal,\n      actual: actualVal,\n      passed: passed\n    };\n    checkCount++;\n    if (passed) passCount++;\n  }\n}\n\nconst allPassed = Object.values(checks).every(c => c.passed);\n\n// Build failure details for report\nconst failures = Object.entries(checks)\n  .filter(([k, v]) => !v.passed)\n  .map(([k, v]) => k + ': expected=' + JSON.stringify(v.expected) + ' actual=' + JSON.stringify(v.actual))\n  .join('; ');\n\nreturn [{\n  json: {\n    testName: testName,\n    testId: testId,\n    passed: allPassed,\n    passCount: passCount,\n    checkCount: checkCount,\n    failures: failures,\n    hasStrategy: hasStrategy,\n    checks: checks,\n    user_data: user\n  }\n}];"
+            },
+            "name": "Compare Results",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [2400, 640]
+        },
+        {
+            "id": "collect-result",
+            "parameters": {
+                "functionCode": "// Collect this test result and pass back to outer loop\n// We use the static data to accumulate results across iterations\nconst result = items[0].json;\n\n// Get existing results from workflow static data\nlet results = $getWorkflowStaticData('global');\nif (!results.testResults) {\n  results.testResults = [];\n}\nresults.testResults.push(result);\n\n// Return the original item to feed back into outer loop\nreturn [{ json: result }];"
+            },
+            "name": "Collect Result",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [2640, 640]
+        },
+        {
+            "id": "back-to-outer-loop",
+            "parameters": {
+                "functionCode": "// Feed back to outer SplitInBatches with any data\nreturn [{ json: { continue: true } }];"
+            },
+            "name": "Back to Outer Loop",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [2880, 640]
+        },
+        {
+            "id": "generate-report",
+            "parameters": {
+                "functionCode": "// Aggregate all test results from static data\nconst results = $getWorkflowStaticData('global');\nconst testResults = results.testResults || [];\n\nconst total = testResults.length;\nconst passed = testResults.filter(r => r.passed).length;\nconst failed = total - passed;\n\nlet report = '=== E2E Test Report ===\\n';\nreport += 'Total: ' + total + ' | Passed: ' + passed + ' | Failed: ' + failed + '\\n';\nreport += '========================\\n\\n';\n\nfor (const r of testResults) {\n  const status = r.passed ? 'PASS' : 'FAIL';\n  report += status + ' | ' + r.testName + ' (id: ' + r.testId + ')\\n';\n  report += '  Checks: ' + r.passCount + '/' + r.checkCount;\n  if (r.hasStrategy) {\n    report += ' | Strategy: YES';\n  } else {\n    report += ' | Strategy: NO';\n  }\n  report += '\\n';\n  if (!r.passed && r.failures) {\n    report += '  Failures: ' + r.failures + '\\n';\n  }\n  report += '\\n';\n}\n\nreport += '========================\\n';\nif (failed === 0) {\n  report += 'ALL TESTS PASSED';\n} else {\n  report += failed + ' TEST(S) FAILED';\n}\n\n// Clear static data after report\nresults.testResults = [];\n\nreturn [{\n  json: {\n    report: report,\n    total: total,\n    passed: passed,\n    failed: failed,\n    chat_id: 144636366\n  }\n}];"
+            },
+            "name": "Generate Report",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [720, 640]
+        },
+        {
+            "id": "send-report-telegram",
+            "parameters": {
+                "operation": "sendMessage",
+                "chatId": "={{ $json.chat_id }}",
+                "text": "={{ $json.report }}",
+                "additionalFields": {}
+            },
+            "name": "Send Report via Telegram",
+            "type": "n8n-nodes-base.telegram",
+            "typeVersion": 1.2,
+            "position": [960, 640],
+            "credentials": {
+                "telegramApi": {
+                    "id": "SLNhx6dJUSPFBV35",
+                    "name": "Telegram Bot - Running Coach"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Manual Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Generate Test Personas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Test Personas": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Personas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Loop Over Personas": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Messages",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Generate Report",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Messages": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Messages",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Loop Over Messages": {
+            "main": [
+                [
+                    {
+                        "node": "Send to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Wait 15s After Onboarding",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send to Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Wait 5s Between Messages",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wait 5s Between Messages": {
+            "main": [
+                [
+                    {
+                        "node": "Continue Inner Loop",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Continue Inner Loop": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Messages",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wait 15s After Onboarding": {
+            "main": [
+                [
+                    {
+                        "node": "Restore Persona Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Restore Persona Data": {
+            "main": [
+                [
+                    {
+                        "node": "Get Test User",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Test User": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Strategy Query",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Strategy Query": {
+            "main": [
+                [
+                    {
+                        "node": "Get Test Strategy",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Test Strategy": {
+            "main": [
+                [
+                    {
+                        "node": "Compare Results",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Compare Results": {
+            "main": [
+                [
+                    {
+                        "node": "Collect Result",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Collect Result": {
+            "main": [
+                [
+                    {
+                        "node": "Back to Outer Loop",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Back to Outer Loop": {
+            "main": [
+                [
+                    {
+                        "node": "Loop Over Personas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Report": {
+            "main": [
+                [
+                    {
+                        "node": "Send Report via Telegram",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionTimeout": 3600,
+        "executionOrder": "v1"
+    }
+}

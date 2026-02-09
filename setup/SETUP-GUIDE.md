@@ -98,14 +98,16 @@ OPENAI_API_KEY: sk-...
 8. Перейдите в **Settings → API**
 9. Скопируйте:
    - **Project URL** (формат: `https://xxx.supabase.co`)
-   - **anon public key** (длинная строка)
+   - **service_role key** (длинная строка, раздел "service_role" — НЕ anon key!)
 
 **Сохраните:**
 ```
 SUPABASE_URL: https://xxx.supabase.co
-SUPABASE_ANON_KEY: eyJhbGc...
+SUPABASE_SERVICE_ROLE_KEY: eyJhbGc...
 SUPABASE_DB_PASSWORD: ваш_пароль
 ```
+
+> **Важно:** Для n8n нужен именно `service_role` ключ, а не `anon`. Service Role обходит Row Level Security (RLS) и имеет полный доступ к данным. Anon key ограничен RLS-политиками и не сможет читать/писать данные пользователей.
 
 ---
 
@@ -161,7 +163,7 @@ SUPABASE_DB_PASSWORD: ваш_пароль
 2. Выберите **Supabase**
 3. Введите:
    - **Host:** `https://xxx.supabase.co` (ваш SUPABASE_URL)
-   - **Service Role Secret:** ваш `SUPABASE_ANON_KEY`
+   - **Service Role Secret:** ваш `SUPABASE_SERVICE_ROLE_KEY` (НЕ anon key! Service Role обходит RLS и нужен для n8n)
 4. Нажмите **Save**
 
 ### 3.2 Импорт Workflows
