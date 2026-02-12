@@ -30,6 +30,7 @@ CREATE TABLE users (
   level TEXT CHECK (level IN ('beginner', 'intermediate', 'advanced')),
   training_type TEXT DEFAULT 'outdoor' CHECK (training_type IN ('outdoor', 'treadmill')),
   weekly_runs INTEGER DEFAULT 3 CHECK (weekly_runs >= 1 AND weekly_runs <= 7),
+  preferred_training_days TEXT,       -- Free text: "понедельник, среда, пятница, один из выходных"
 
   -- Goal settings
   goal TEXT CHECK (goal IN ('general', 'race', 'improvement')),

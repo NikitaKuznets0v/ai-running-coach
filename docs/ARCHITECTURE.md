@@ -162,13 +162,13 @@ Get Active Plan (Supabase: weekly_plans, status='active')
 | Стадия | Захардкоженный вопрос | GPT парсит |
 |---|---|---|
 | `started` | Приветствие + описание бота + вопрос об уровне | — (пустой JSON) |
-| `profile` | "Сколько тебе лет?" | level |
+| `profile` | "Сколько тебе лет?" | level (с маппингом: новичок→beginner, любитель→intermediate, продвинутый→advanced) |
 | `physical` | "Какой у тебя рост (см) и вес (кг)?" | age |
 | `heart_rate` | "Какой у тебя пульс в покое?" | height_cm, weight_kg |
 | `running_info` | "За сколько пробегаешь 5 км?" | resting_hr (nullable) |
 | `lab_testing` | "Делал ли лабораторные тесты?" | current_5k_pace_seconds |
-| `training_freq` | "Сколько дней в неделю?" | has_lab_testing, vo2max, lthr |
-| `race_details` | "Дистанция, дата, целевое время" | weekly_runs |
+| `training_freq` | "Сколько дней в неделю? + предпочтения по дням" | has_lab_testing, vo2max, lthr |
+| `race_details` | "Дистанция, дата, целевое время" | weekly_runs, preferred_training_days (nullable) |
 | `strategy_preview` | GPT генерирует стратегию (с базой знаний) | race_distance, goal, target_time → phases[] |
 
 ### Завершённый онбординг (completed) — v6: с базой знаний
@@ -185,6 +185,7 @@ Get Active Plan (Supabase: weekly_plans, status='active')
 3. **Генерация плана** (regex: `план|состав|давай|начн|готов|недел` — только если НЕ запрос обновления):
    - v6: Подставляет ПОЛНУЮ базу знаний (`buildKnowledgeContext`)
    - Рассчитанные темпы, шаблоны, правила, ограничения уровня
+   - Если есть `preferred_training_days` — планирует тренировки в указанные дни
 
 4. **Общий чат** (всё остальное):
    - v6: Подставляет базовые знания (правила + типы + темпы)
@@ -222,7 +223,7 @@ Get Active Plan (Supabase: weekly_plans, status='active')
 
 | Таблица | Назначение | Ключевые поля |
 |---|---|---|
-| `users` | Профили | telegram_id, onboarding_stage, race_distance, race_distance_km |
+| `users` | Профили | telegram_id, onboarding_stage, race_distance, race_distance_km, preferred_training_days |
 | `training_strategies` | Стратегии | phases (JSONB), total_weeks, status |
 | `weekly_plans` | Недельные планы | plan_data (JSONB), week_start, week_end (v6), status |
 | `trainings` | Записи тренировок | distance_km, duration_seconds, source, screenshot_count |

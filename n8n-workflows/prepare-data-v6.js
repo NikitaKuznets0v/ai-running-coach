@@ -412,7 +412,7 @@ const ONBOARDING_QUESTIONS = {
   heart_rate: 'Какой у тебя пульс в покое? Если не знаешь — напиши "не знаю".',
   running_info: 'За сколько пробегаешь 5 км? (примерное время)',
   lab_testing: 'Делал ли ты лабораторные тесты (VO2max, ПАНО)? Если да — напиши результаты.',
-  training_freq: 'Сколько дней в неделю готов тренироваться? (от 3 до 6)',
+  training_freq: 'Сколько дней в неделю готов тренироваться? (от 3 до 6)\nЕсли есть предпочтения по дням — напиши их тоже (например: Пн, Ср, Пт и выходной).',
   race_details: 'Расскажи о забеге:\n- Какая дистанция? (5 км, 10 км, полумарафон, марафон или другая)\n- Когда забег? (дата)\n- Какое целевое время?'
 };
 
@@ -503,13 +503,13 @@ if (stage !== 'completed') {
 
     // Build parsing-only system prompts
     const parsingPrompts = {
-      profile: 'Extract level from user message. User chose their running level. Return ONLY JSON: {"extracted": {"level": "beginner" or "intermediate" or "advanced"}, "response": "ok"}. User said: "' + message + '"',
+      profile: 'Extract level from user message. MAPPING: "новичок"/"newbie"/"beginner" = "beginner", "любитель"/"intermediate"/"amateur" = "intermediate", "продвинутый"/"advanced"/"pro" = "advanced". Return ONLY JSON: {"extracted": {"level": "beginner" or "intermediate" or "advanced"}, "response": "ok"}. User said: "' + message + '"',
       physical: 'Extract age (number) from user message. Return ONLY JSON: {"extracted": {"age": number}, "response": "ok"}. User said: "' + message + '"',
       heart_rate: 'Extract height_cm (number) and weight_kg (number) from user message. Return ONLY JSON: {"extracted": {"height_cm": number, "weight_kg": number}, "response": "ok"}. User said: "' + message + '"',
       running_info: 'Extract resting_hr from user message. If user does not know their resting HR, set null. Do NOT re-ask. Return ONLY JSON: {"extracted": {"resting_hr": number_or_null}, "response": "ok"}. User said: "' + message + '"',
       lab_testing: 'Extract current_5k_pace_seconds from user message. User tells their 5K time or pace. Convert to pace per km in seconds (e.g., 25 minutes for 5K = 300 sec/km). Return ONLY JSON: {"extracted": {"current_5k_pace_seconds": number}, "response": "ok"}. User said: "' + message + '"',
       training_freq: 'Extract has_lab_testing (boolean), vo2max (number or null), lthr (number or null) from user message. Return ONLY JSON: {"extracted": {"has_lab_testing": bool, "vo2max": number_or_null, "lthr": number_or_null}, "response": "ok"}. User said: "' + message + '"',
-      race_details: 'Extract weekly_runs (number 3-6) from user message. Also extract race info if provided: race_distance ("5k","10k","half","marathon", or custom like "30k"), race_distance_km (number), race_date (YYYY-MM-DD), target_time_seconds (number). For distances: 5k=5, 10k=10, half=21.1, marathon=42.2. For target time: convert to total seconds. Return ONLY JSON: {"extracted": {"weekly_runs": number, "race_distance": string_or_null, "race_distance_km": number_or_null, "race_date": "YYYY-MM-DD"_or_null, "target_time_seconds": number_or_null}, "response": "ok"}. User said: "' + message + '"'
+      race_details: 'Extract weekly_runs (number 3-6) from user message. Also extract preferred_training_days if user mentioned specific days (e.g. "Пн, Ср, Пт, выходной" → "понедельник, среда, пятница, один из выходных"). Keep in Russian, free text. If no days mentioned, set null. Also extract race info if provided: race_distance ("5k","10k","half","marathon", or custom like "30k"), race_distance_km (number), race_date (YYYY-MM-DD), target_time_seconds (number). For distances: 5k=5, 10k=10, half=21.1, marathon=42.2. For target time: convert to total seconds. Return ONLY JSON: {"extracted": {"weekly_runs": number, "preferred_training_days": string_or_null, "race_distance": string_or_null, "race_distance_km": number_or_null, "race_date": "YYYY-MM-DD"_or_null, "target_time_seconds": number_or_null}, "response": "ok"}. User said: "' + message + '"'
     };
 
     systemPrompt = parsingPrompts[stage] || ('Return {"extracted": {}, "response": "ok"}. ' + JSON_FORMAT);
@@ -569,6 +569,7 @@ if (stage !== 'completed') {
       + '\n' + templateText
       + strategyContext + trainingsContext + planContext
       + '\n\nСоставь план на неделю. СТРОГО ' + (data.weekly_runs || 3) + ' тренировочных дней, остальные дни — отдых. НЕ добавляй лишних тренировок!'
+      + (data.preferred_training_days ? '\nПРЕДПОЧТИТЕЛЬНЫЕ ДНИ ТРЕНИРОВОК: ' + data.preferred_training_days + '. Планируй тренировки ИМЕННО в эти дни.' : '')
       + (currentPhase ? '\n\nВАЖНО: План должен соответствовать ТЕКУЩЕЙ ФАЗЕ: ' + currentPhase.display_name + '. Фокус: ' + currentPhase.focus + '. Объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км.' : '')
       + '\n\nUSE THE TEMPLATE ABOVE as the base structure. Адаптируй его под текущую фазу и прогресс.'
       + '\nDO NOT use training types not listed in ДОПУСТИМЫЕ ТИПЫ: ' + allowedTypes.join(', ') + '.'
