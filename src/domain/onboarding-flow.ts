@@ -80,7 +80,13 @@ export const ONBOARDING_FLOW: Record<string, OnboardingStep> = {
   },
   strategy_preview: {
     stage: 'strategy_preview',
-    question: q('Отлично! Сейчас сформирую 12-недельную стратегию подготовки и первый недельный план.'),
+    question: q('Отлично! Сейчас покажу стратегию подготовки.'),
+    extract: () => ({}),
+    next: 'start_date'
+  },
+  start_date: {
+    stage: 'start_date',
+    question: q('С какого дня ты готов начать тренировки?\n\nНапример: "завтра", "с понедельника", "со следующей недели"'),
     extract: () => ({}),
     next: 'completed'
   }

@@ -12,6 +12,7 @@ export const OnboardingStageSchema = z.enum([
   'training_freq',
   'race_details',
   'strategy_preview',
+  'start_date',
   'completed'
 ]);
 

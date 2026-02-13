@@ -3,15 +3,24 @@ import { ONBOARDING_FLOW } from '../domain/onboarding-flow.js';
 import { upsertUserProfile } from '../services/supabase.js';
 import { fallbackExtract } from '../utils/openai-extract.js';
 import { UserProfilePatchSchema } from '../domain/schemas.js';
-import { createStrategy } from '../services/strategy.js';
+import { createStrategy, getActiveStrategy, updateStrategyStartDate } from '../services/strategy.js';
 import { buildWeeklyPlan } from '../engine/plan-builder.js';
 import { renderPlan } from '../ai/presenter.js';
 import { saveWeeklyPlan } from '../services/weekly-plan.js';
-import { nextMondayFrom, weekRangeFromMonday, remainingWeekDates } from '../utils/dates.js';
 import { formatStrategyPreview } from '../utils/format-strategy.js';
+import { extractStartDate } from '../utils/parse.js';
 
 function isStartCommand(text: string): boolean {
   return /^\/?start$/i.test(text.trim());
+}
+
+function generateDatesFromStart(startDateStr: string): Date[] {
+  const start = new Date(startDateStr);
+  const dates: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    dates.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+  }
+  return dates;
 }
 
 export async function handleOnboarding(user: UserProfile, messageText: string) {
@@ -32,6 +41,43 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
     return { reply, updated: user };
   }
 
+  // --- start_date stage: parse date, generate first plan ---
+  if (stage === 'start_date') {
+    const startDateStr = extractStartDate(messageText);
+    if (!startDateStr) {
+      return {
+        reply: 'Не удалось распознать дату. Попробуй ещё раз.\n\nНапример: "завтра", "с понедельника", "со следующей недели", или конкретную дату (15.03.2026).',
+        updated: user
+      };
+    }
+
+    // Update strategy start_date if we have one
+    const strategy = await getActiveStrategy(user.id);
+    if (strategy) {
+      await updateStrategyStartDate(strategy.id, startDateStr);
+    }
+
+    // Generate first week plan
+    const dates = generateDatesFromStart(startDateStr);
+    let reply = '';
+    try {
+      const plan = buildWeeklyPlan({
+        user,
+        dates,
+        strategy: strategy ? { start_date: startDateStr, phases: strategy.phases } : null
+      });
+      await saveWeeklyPlan(user.id, plan);
+      reply = 'Отлично! Вот твой план на первую неделю:\n\n' + renderPlan(plan);
+      reply += '\n\nОнбординг завершён! Теперь можешь писать мне как тренеру — задавать вопросы, отправлять фото тренировок, просить новый план.';
+    } catch {
+      reply = 'План будет готов к началу недели. Напиши "план" чтобы получить его.';
+    }
+
+    await upsertUserProfile({ telegram_id: user.telegram_id, onboarding_stage: 'completed' });
+    return { reply, updated: { ...user, onboarding_stage: 'completed' as const } };
+  }
+
+  // --- Normal onboarding extraction ---
   let extracted = step.extract(messageText) || {};
 
   // If extraction produced nothing useful, fallback to OpenAI extraction
@@ -73,7 +119,7 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
       }
 
       return {
-        reply: `${msg} Укажи другую дату забега.\n\nНапример: 15.06.2026 или 2026-06-15`,
+        reply: `${msg} Укажи другую дату забега.\n\nНапример: 15.06.2026 или "через 12 недель"`,
         updated: { ...user, ...partialPatch }
       };
     }
@@ -100,9 +146,12 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
 
   const nextStage = step.next;
 
+  // For strategy_preview: skip to start_date (strategy_preview is not user-facing)
+  const effectiveNextStage = nextStage === 'strategy_preview' ? 'start_date' : nextStage;
+
   const patch: Partial<UserProfile> = {
     ...(extracted as Partial<UserProfile>),
-    onboarding_stage: nextStage
+    onboarding_stage: effectiveNextStage
   };
 
   // Validate patch shape (soft)
@@ -111,7 +160,7 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
 
   const updated = await upsertUserProfile(finalPatch);
 
-  // Strategy preview → create strategy, show it, generate first plan, advance to completed
+  // Strategy preview → create strategy, show it, then ask start date
   if (nextStage === 'strategy_preview') {
     const strategy = await createStrategy(updated);
     let reply = '';
@@ -123,41 +172,21 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
     if (strategy?.phases) {
       reply += formatStrategyPreview(strategy.phases, updated.race_date || '', updated.race_distance || '');
     } else {
-      reply += 'Стратегия подготовки сформирована.\n';
+      reply += 'Стратегия подготовки сформирована.';
     }
 
-    // Auto-generate first week plan
-    try {
-      const now = new Date();
-      const isMidWeek = now.getDay() !== 1;
-      const dates = isMidWeek ? remainingWeekDates(now) : (() => {
-        const monday = nextMondayFrom(now);
-        const range = weekRangeFromMonday(monday);
-        const d: Date[] = [];
-        for (let i = 0; i < 7; i++) {
-          d.push(new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate() + i));
-        }
-        return d;
-      })();
+    // Append start_date question
+    const startDateQ = ONBOARDING_FLOW.start_date.question;
+    const startDateText = typeof startDateQ === 'function' ? startDateQ(updated) : startDateQ;
+    reply += '\n\n' + startDateText;
 
-      if (dates.length > 0) {
-        const plan = buildWeeklyPlan({
-          user: updated,
-          dates,
-          strategy: strategy ? { start_date: strategy.start_date, phases: strategy.phases } : null
-        });
-        await saveWeeklyPlan(updated.id, plan);
-        reply += '\n' + renderPlan(plan);
-      }
-    } catch {
-      reply += '\nНапиши "план" или "с понедельника" чтобы получить план на неделю.';
-    }
-
-    await upsertUserProfile({ telegram_id: user.telegram_id, onboarding_stage: 'completed' });
-    return { reply, updated: { ...updated, onboarding_stage: 'completed' as const } };
+    return { reply, updated: { ...updated, onboarding_stage: 'start_date' as const } };
   }
 
-  const nextStep = ONBOARDING_FLOW[nextStage];
+  const nextStep = ONBOARDING_FLOW[effectiveNextStage];
+  if (!nextStep) {
+    return { reply: 'Онбординг завершён!', updated };
+  }
   const reply = typeof nextStep.question === 'function' ? nextStep.question(updated) : nextStep.question;
 
   return { reply, updated };

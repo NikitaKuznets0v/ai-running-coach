@@ -77,6 +77,7 @@ CREATE TABLE users (
     'training_freq',
     'race_details',
     'strategy_preview',
+    'start_date',
     'completed'
   )),
   onboarding_data JSONB DEFAULT '{}',

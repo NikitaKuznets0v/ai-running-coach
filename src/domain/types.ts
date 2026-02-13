@@ -10,6 +10,7 @@ export type OnboardingStage =
   | 'training_freq'
   | 'race_details'
   | 'strategy_preview'
+  | 'start_date'
   | 'completed';
 
 export interface UserProfile {

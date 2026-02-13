@@ -22,8 +22,5 @@ export function formatStrategyPreview(phases: StrategyPhase[], raceDate: string,
     lines.push(`${p.display_name} (нед. ${p.start_week}-${p.end_week}): ${p.focus}${km}`);
   }
 
-  lines.push('');
-  lines.push('Первый план на неделю:');
-
   return lines.join('\n');
 }
