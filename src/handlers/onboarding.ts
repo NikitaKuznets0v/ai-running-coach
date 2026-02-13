@@ -41,8 +41,9 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
     return { reply, updated: user };
   }
 
-  // --- start_date stage: parse date, generate first plan ---
-  if (stage === 'start_date') {
+  // --- strategy_preview stage: user is answering start date question ---
+  // (Strategy was already shown, now we parse when they want to start)
+  if (stage === 'strategy_preview') {
     const startDateStr = extractStartDate(messageText);
     if (!startDateStr) {
       return {
@@ -146,12 +147,9 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
 
   const nextStage = step.next;
 
-  // For strategy_preview: skip to start_date (strategy_preview is not user-facing)
-  const effectiveNextStage = nextStage === 'strategy_preview' ? 'start_date' : nextStage;
-
   const patch: Partial<UserProfile> = {
     ...(extracted as Partial<UserProfile>),
-    onboarding_stage: effectiveNextStage
+    onboarding_stage: nextStage
   };
 
   // Validate patch shape (soft)
@@ -175,15 +173,13 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
       reply += 'Стратегия подготовки сформирована.';
     }
 
-    // Append start_date question
-    const startDateQ = ONBOARDING_FLOW.start_date.question;
-    const startDateText = typeof startDateQ === 'function' ? startDateQ(updated) : startDateQ;
-    reply += '\n\n' + startDateText;
+    // Ask when to start training
+    reply += '\n\nС какого дня ты готов начать тренировки?\n\nНапример: "завтра", "с понедельника", "со следующей недели"';
 
-    return { reply, updated: { ...updated, onboarding_stage: 'start_date' as const } };
+    return { reply, updated: { ...updated, onboarding_stage: 'strategy_preview' as const } };
   }
 
-  const nextStep = ONBOARDING_FLOW[effectiveNextStage];
+  const nextStep = ONBOARDING_FLOW[nextStage];
   if (!nextStep) {
     return { reply: 'Онбординг завершён!', updated };
   }
