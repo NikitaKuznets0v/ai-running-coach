@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { CONFIG } from '../config.js';
+import { convertPdfToImage } from '../utils/pdf-converter.js';
 
 const client = new OpenAI({ apiKey: CONFIG.openaiApiKey });
 
@@ -19,8 +20,22 @@ export interface LabTestData {
   vo2max_pace_min_km?: string; // e.g., "4:33"
 }
 
-export async function parseLabTestDocument(imageUrl: string): Promise<LabTestData> {
+export async function parseLabTestDocument(fileUrl: string): Promise<LabTestData> {
   if (!CONFIG.openaiApiKey) throw new Error('OPENAI_API_KEY not set');
+
+  // Check if file is PDF or image
+  const isPdf = fileUrl.toLowerCase().endsWith('.pdf') || fileUrl.includes('.pdf?');
+
+  let imageUrl = fileUrl;
+
+  // If PDF, convert to image first
+  if (isPdf) {
+    const response = await fetch(fileUrl);
+    if (!response.ok) throw new Error('Failed to download PDF');
+
+    const pdfBuffer = Buffer.from(await response.arrayBuffer());
+    imageUrl = await convertPdfToImage(pdfBuffer);
+  }
 
   const systemPrompt = `Ты — специалист по анализу результатов лабораторных беговых тестов.
 

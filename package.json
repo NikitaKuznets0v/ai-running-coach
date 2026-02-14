@@ -16,6 +16,7 @@
     "grammy": "^1.23.1",
     "node-cron": "^3.0.3",
     "openai": "^4.77.0",
+    "pdf-poppler": "^0.2.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
