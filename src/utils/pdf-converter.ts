@@ -7,6 +7,32 @@ import os from 'os';
 const execAsync = promisify(exec);
 
 /**
+ * Extracts text from PDF using pdftotext
+ * Returns plain text content
+ */
+export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdf-text-'));
+  const pdfPath = path.join(tempDir, 'input.pdf');
+
+  try {
+    await fs.writeFile(pdfPath, pdfBuffer);
+
+    // Extract text using pdftotext (part of poppler-utils)
+    // -layout: maintain original layout
+    // -: output to stdout
+    const { stdout } = await execAsync(`pdftotext -layout "${pdfPath}" -`);
+
+    return stdout.trim();
+  } finally {
+    try {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    } catch (err) {
+      console.error('Failed to cleanup temp dir:', err);
+    }
+  }
+}
+
+/**
  * Converts first page of PDF to PNG image
  * Returns base64 data URL for OpenAI Vision API
  */
