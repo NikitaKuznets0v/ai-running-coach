@@ -154,19 +154,28 @@ bot.on('message:photo', async (ctx) => {
 
       const updated = await upsertUserProfile(updateData);
 
-      // Format response
-      let reply = '✅ Данные лабораторного теста успешно распознаны!\n\n';
-      if (labData.vo2max) reply += `• VO2max: ${labData.vo2max} мл/кг/мин\n`;
-      if (labData.lthr) reply += `• LTHR (ПАНО): ${labData.lthr} уд/мин\n`;
-      if (labData.lt1_hr) reply += `• LT1 (аэробный порог): ${labData.lt1_hr} уд/мин\n`;
+      // Check if any data was extracted
+      const hasData = labData.vo2max || labData.lthr || labData.lt1_hr ||
+                      labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max;
 
-      if (labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max) {
-        reply += `\n📊 Пульсовые зоны:\n`;
-        if (labData.hr_zone1_max) reply += `• Z1 (восстановление): до ${labData.hr_zone1_max} уд/мин\n`;
-        if (labData.hr_zone2_max) reply += `• Z2 (аэробная): до ${labData.hr_zone2_max} уд/мин\n`;
-        if (labData.hr_zone3_max) reply += `• Z3 (темповая): до ${labData.hr_zone3_max} уд/мин\n`;
-        if (labData.hr_zone4_max) reply += `• Z4 (пороговая): до ${labData.hr_zone4_max} уд/мин\n`;
-        if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
+      // Format response
+      let reply = '';
+      if (hasData) {
+        reply = '✅ Данные лабораторного теста успешно распознаны!\n\n';
+        if (labData.vo2max) reply += `• VO2max: ${labData.vo2max} мл/кг/мин\n`;
+        if (labData.lthr) reply += `• LTHR (ПАНО): ${labData.lthr} уд/мин\n`;
+        if (labData.lt1_hr) reply += `• LT1 (аэробный порог): ${labData.lt1_hr} уд/мин\n`;
+
+        if (labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max) {
+          reply += `\n📊 Пульсовые зоны:\n`;
+          if (labData.hr_zone1_max) reply += `• Z1 (восстановление): до ${labData.hr_zone1_max} уд/мин\n`;
+          if (labData.hr_zone2_max) reply += `• Z2 (аэробная): до ${labData.hr_zone2_max} уд/мин\n`;
+          if (labData.hr_zone3_max) reply += `• Z3 (темповая): до ${labData.hr_zone3_max} уд/мин\n`;
+          if (labData.hr_zone4_max) reply += `• Z4 (пороговая): до ${labData.hr_zone4_max} уд/мин\n`;
+          if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
+        }
+      } else {
+        reply = '⚠️ Не удалось распознать данные из документа.\n\nПопробуй:\n• Отправить более чёткое фото/скриншот\n• Или напиши данные текстом:\n  - VO2max (мл/кг/мин)\n  - LTHR / ПАНО (пульс на анаэробном пороге)\n  - HR зоны Z1-Z5';
       }
 
       await ctx.reply(reply);
@@ -385,19 +394,28 @@ bot.on('message:document', async (ctx) => {
 
     const updated = await upsertUserProfile(updateData);
 
-    // Format response
-    let reply = '✅ Данные лабораторного теста успешно распознаны!\n\n';
-    if (labData.vo2max) reply += `• VO2max: ${labData.vo2max} мл/кг/мин\n`;
-    if (labData.lthr) reply += `• LTHR (ПАНО): ${labData.lthr} уд/мин\n`;
-    if (labData.lt1_hr) reply += `• LT1 (аэробный порог): ${labData.lt1_hr} уд/мин\n`;
+    // Check if any data was extracted
+    const hasData = labData.vo2max || labData.lthr || labData.lt1_hr ||
+                    labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max;
 
-    if (labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max) {
-      reply += `\n📊 Пульсовые зоны:\n`;
-      if (labData.hr_zone1_max) reply += `• Z1 (восстановление): до ${labData.hr_zone1_max} уд/мин\n`;
-      if (labData.hr_zone2_max) reply += `• Z2 (аэробная): до ${labData.hr_zone2_max} уд/мин\n`;
-      if (labData.hr_zone3_max) reply += `• Z3 (темповая): до ${labData.hr_zone3_max} уд/мин\n`;
-      if (labData.hr_zone4_max) reply += `• Z4 (пороговая): до ${labData.hr_zone4_max} уд/мин\n`;
-      if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
+    // Format response
+    let reply = '';
+    if (hasData) {
+      reply = '✅ Данные лабораторного теста успешно распознаны!\n\n';
+      if (labData.vo2max) reply += `• VO2max: ${labData.vo2max} мл/кг/мин\n`;
+      if (labData.lthr) reply += `• LTHR (ПАНО): ${labData.lthr} уд/мин\n`;
+      if (labData.lt1_hr) reply += `• LT1 (аэробный порог): ${labData.lt1_hr} уд/мин\n`;
+
+      if (labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max) {
+        reply += `\n📊 Пульсовые зоны:\n`;
+        if (labData.hr_zone1_max) reply += `• Z1 (восстановление): до ${labData.hr_zone1_max} уд/мин\n`;
+        if (labData.hr_zone2_max) reply += `• Z2 (аэробная): до ${labData.hr_zone2_max} уд/мин\n`;
+        if (labData.hr_zone3_max) reply += `• Z3 (темповая): до ${labData.hr_zone3_max} уд/мин\n`;
+        if (labData.hr_zone4_max) reply += `• Z4 (пороговая): до ${labData.hr_zone4_max} уд/мин\n`;
+        if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
+      }
+    } else {
+      reply = '⚠️ Не удалось распознать данные из документа.\n\nПопробуй:\n• Отправить более чёткое фото/скриншот\n• Или напиши данные текстом:\n  - VO2max (мл/кг/мин)\n  - LTHR / ПАНО (пульс на анаэробном пороге)\n  - HR зоны Z1-Z5';
     }
 
     await ctx.reply(reply);

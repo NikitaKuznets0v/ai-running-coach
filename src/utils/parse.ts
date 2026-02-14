@@ -167,6 +167,15 @@ const MINUTE_WORDS: Record<string, number> = {
 function parseTargetTime(text: string): number | null {
   const m = text.toLowerCase();
 
+  // Check for "выбежать из X" pattern - means "faster than X" (typically -1 min)
+  const runUnder = m.match(/выбежать\s*из\s*(\d{1,2}):(\d{2})/);
+  if (runUnder) {
+    const hours = Number(runUnder[1]);
+    const mins = Number(runUnder[2]);
+    const targetSeconds = hours * 3600 + mins * 60;
+    return targetSeconds - 60; // subtract 1 minute
+  }
+
   // "1ч 50м", "2ч 30м"
   const hm = m.match(/(\d{1,2})\s*ч\s*(\d{1,2})\s*м/);
   if (hm) return Number(hm[1]) * 3600 + Number(hm[2]) * 60;

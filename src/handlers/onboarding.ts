@@ -49,7 +49,7 @@ function buildOnboardingSummary(user: UserProfile): string {
       ? assessGoalRealism(user.target_time_seconds, prediction.realistic)
       : null;
 
-    summary += `\n**Мой прогноз** на основе твоего текущего темпа (5 км за ${formatTime(user.current_5k_pace_seconds)}):\n`;
+    summary += `\n**Мой прогноз** на ${distance} на основе текущего уровня подготовки:\n`;
     summary += `• Оптимистичный сценарий: **${formatTime(prediction.optimistic)}**\n`;
     summary += `• Реалистичный прогноз: **${formatTime(prediction.realistic)}**\n`;
     summary += `• Консервативная оценка: **${formatTime(prediction.pessimistic)}**\n`;
