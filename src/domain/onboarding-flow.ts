@@ -66,10 +66,24 @@ export const ONBOARDING_FLOW: Record<string, OnboardingStep> = {
   training_freq: {
     stage: 'training_freq',
     question: q('Сколько дней в неделю готов тренироваться? (от 3 до 6)\nЭто нужно для построения расписания. Если есть предпочтения по дням — напиши их (например: Пн, Ср, Пт).'),
-    extract: (message: string) => ({
-      weekly_runs: extractWeeklyRuns(message) || undefined,
-      preferred_training_days: extractPreferredDays(message)
-    }),
+    extract: (message: string) => {
+      const daysResult = extractPreferredDays(message);
+      const weeklyRuns = extractWeeklyRuns(message);
+
+      return {
+        weekly_runs: weeklyRuns || undefined,
+        preferred_training_days: daysResult?.days || null,
+        // Store hasOr flag for clarification question
+        _daysHasOr: daysResult?.hasOr || false,
+        _daysEstimatedCount: daysResult?.estimatedCount || weeklyRuns || undefined
+      };
+    },
+    next: 'race_details'
+  },
+  training_freq_confirm: {
+    stage: 'training_freq_confirm',
+    question: q(''),  // Question is handled dynamically in onboarding.ts
+    extract: () => ({}),
     next: 'race_details'
   },
   race_details: {

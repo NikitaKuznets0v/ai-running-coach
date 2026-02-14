@@ -8,6 +8,7 @@ export type OnboardingStage =
   | 'running_info'
   | 'lab_testing'
   | 'training_freq'
+  | 'training_freq_confirm'
   | 'race_details'
   | 'strategy_preview'
   | 'start_date'

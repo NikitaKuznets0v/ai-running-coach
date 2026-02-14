@@ -25,7 +25,7 @@ describe('onboarding parsing - extra cases', () => {
 
   it('parses preferred days with abbreviations', () => {
     const r = extractPreferredDays('Пн, вт и чт');
-    expect(r).toContain('пн');
+    expect(r?.days).toContain('пн');
   });
 
   it('parses weekly runs from digit', () => {
@@ -37,11 +37,11 @@ describe('onboarding parsing - extra cases', () => {
   });
 
   it('avoids day duplicates (среда vs ср)', () => {
-    expect(extractPreferredDays('понедельник, среда, пятница')).toBe('понедельник, среда, пятница');
-    expect(extractPreferredDays('пн, ср, пт')).toBe('пн, ср, пт');
+    expect(extractPreferredDays('понедельник, среда, пятница')?.days).toBe('понедельник, среда, пятница');
+    expect(extractPreferredDays('пн, ср, пт')?.days).toBe('пн, ср, пт');
     // "среда" includes "ср" but should only return one
     const days = extractPreferredDays('понедельник, среда, пятница');
-    expect(days?.split(', ').length).toBe(3);
+    expect(days?.days.split(', ').length).toBe(3);
   });
 
   it('parses pace from min format', () => {

@@ -35,7 +35,7 @@ describe('onboarding parsing', () => {
 
   it('parses weekly runs and days', () => {
     expect(extractWeeklyRuns('готов 4 раза')).toBe(4);
-    expect(extractPreferredDays('Пн, Ср, Пт')).toContain('пн');
+    expect(extractPreferredDays('Пн, Ср, Пт')?.days).toContain('пн');
   });
 
   it('parses 5k pace', () => {

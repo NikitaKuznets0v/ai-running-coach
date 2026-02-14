@@ -172,6 +172,75 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
     }
   }
 
+  // Handle training_freq clarification for "или" pattern
+  if (stage === 'training_freq') {
+    const daysHasOr = (extracted as any)._daysHasOr as boolean;
+    const estimatedCount = (extracted as any)._daysEstimatedCount as number | undefined;
+
+    if (daysHasOr && estimatedCount) {
+      // Save partial data and ask for clarification
+      const partialPatch: Record<string, any> = {
+        preferred_training_days: (extracted as any).preferred_training_days,
+        weekly_runs: (extracted as any).weekly_runs
+      };
+
+      await upsertUserProfile({ telegram_id: user.telegram_id, ...partialPatch });
+
+      return {
+        reply: `Я правильно понял, что ты хочешь тренироваться **${estimatedCount} ${estimatedCount === 1 ? 'день' : estimatedCount < 5 ? 'дня' : 'дней'} в неделю**?\n\nОтветь "да" или укажи правильное количество дней (например, "5 дней").`,
+        updated: { ...user, ...partialPatch, onboarding_stage: 'training_freq_confirm' as const }
+      };
+    }
+
+    // Clean up internal flags
+    delete (extracted as any)._daysHasOr;
+    delete (extracted as any)._daysEstimatedCount;
+  }
+
+  // Handle training_freq_confirm response
+  if (stage === 'training_freq_confirm') {
+    const m = messageText.toLowerCase();
+    const isYes = /^(да|yes|ок|правильно|верно)$/i.test(m.trim());
+    const numberMatch = m.match(/\b([3-7])\b/);
+
+    if (isYes) {
+      // User confirmed estimated count - remove last day from preferred_training_days
+      const currentDays = user.preferred_training_days?.split(', ') || [];
+      if (currentDays.length > 1) {
+        currentDays.pop(); // Remove last day (the one after "или")
+        await upsertUserProfile({
+          telegram_id: user.telegram_id,
+          preferred_training_days: currentDays.join(', '),
+          onboarding_stage: 'race_details'
+        });
+      }
+
+      // Proceed to next stage
+      const nextStep = ONBOARDING_FLOW.race_details;
+      const reply = typeof nextStep.question === 'function' ? nextStep.question(user) : nextStep.question;
+      return { reply, updated: { ...user, onboarding_stage: 'race_details' as const } };
+    } else if (numberMatch) {
+      // User specified different number - keep all days
+      const newCount = Number(numberMatch[1]);
+      await upsertUserProfile({
+        telegram_id: user.telegram_id,
+        weekly_runs: newCount,
+        onboarding_stage: 'race_details'
+      });
+
+      // Proceed to next stage
+      const nextStep = ONBOARDING_FLOW.race_details;
+      const reply = typeof nextStep.question === 'function' ? nextStep.question(user) : nextStep.question;
+      return { reply, updated: { ...user, weekly_runs: newCount, onboarding_stage: 'race_details' as const } };
+    } else {
+      // Unclear response, ask again
+      return {
+        reply: 'Не совсем понял. Ответь "да" если правильно, или укажи количество дней (например, "5").',
+        updated: user
+      };
+    }
+  }
+
   // After all attempts — if still nothing, re-show question with hint
   // (heart_rate and lab_testing allow "не знаю" → null is valid)
   const hasExtracted = Object.values(extracted).some((v) => v !== undefined && v !== null);

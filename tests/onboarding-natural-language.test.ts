@@ -124,8 +124,8 @@ describe('Natural language parsing - как люди реально говоря
 
     it('по понедельникам и средам', () => {
       const days = extractPreferredDays('по понедельникам и средам');
-      expect(days).toContain('понедельник');
-      expect(days).toContain('среда');
+      expect(days?.days).toContain('понедельник');
+      expect(days?.days).toContain('среда');
     });
 
     it('вторник четверг суббота', () => {
@@ -140,15 +140,15 @@ describe('Natural language parsing - как люди реально говоря
 
     it('будни + выходной', () => {
       const days = extractPreferredDays('понедельник среда пятница и один выходной');
-      expect(days).toContain('понедельник');
-      expect(days).toContain('среда');
-      expect(days).toContain('пятница');
+      expect(days?.days).toContain('понедельник');
+      expect(days?.days).toContain('среда');
+      expect(days?.days).toContain('пятница');
     });
 
     it('три раза в неделю: пн, ср, сб', () => {
       expect(extractWeeklyRuns('три раза в неделю: пн, ср, сб')).toBe(3);
       const days = extractPreferredDays('три раза в неделю: пн, ср, сб');
-      expect(days).toContain('пн');
+      expect(days?.days).toContain('пн');
     });
   });
 

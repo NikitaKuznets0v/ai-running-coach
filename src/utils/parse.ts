@@ -45,29 +45,26 @@ export function extractWeeklyRuns(message: string): number | null {
   if (m) return Number(m[1]);
 
   // If no number found, count unique days mentioned
-  const days = extractPreferredDays(message);
-  if (days) {
-    const uniqueDays = new Set(
-      days.split(', ').map(d => {
-        // Normalize: map to abbreviations
-        if (d === 'пн' || d === 'понедельник') return 'пн';
-        if (d === 'вт' || d === 'вторник') return 'вт';
-        if (d === 'ср' || d === 'среда') return 'ср';
-        if (d === 'чт' || d === 'четверг') return 'чт';
-        if (d === 'пт' || d === 'пятница') return 'пт';
-        if (d === 'сб' || d === 'суббота') return 'сб';
-        if (d === 'вс' || d === 'воскресенье') return 'вс';
-        return d;
-      })
-    );
-    return uniqueDays.size;
+  const daysResult = extractPreferredDays(message);
+  if (daysResult) {
+    // Use estimatedCount which accounts for "или"
+    return daysResult.estimatedCount;
   }
 
   return null;
 }
 
-export function extractPreferredDays(message: string): string | null {
+export interface PreferredDaysResult {
+  days: string;  // e.g., "понедельник, среда, пятница, суббота"
+  hasOr: boolean;  // true if "или" was found between days
+  estimatedCount: number;  // number of training days per week
+}
+
+export function extractPreferredDays(message: string): PreferredDaysResult | null {
   const m = message.toLowerCase();
+
+  // Check if "или" (or) is present between days
+  const hasOr = /\b(или)\b/.test(m);
 
   // Patterns with both full and abbreviated forms
   const dayPatterns = [
@@ -97,7 +94,15 @@ export function extractPreferredDays(message: string): string | null {
   }
 
   if (!found.length) return null;
-  return found.join(', ');
+
+  // If "или" is present, count as one less day (e.g., "сб или вс" = 1 day, not 2)
+  const estimatedCount = hasOr ? found.length - 1 : found.length;
+
+  return {
+    days: found.join(', '),
+    hasOr,
+    estimatedCount
+  };
 }
 
 export function extract5kPaceSeconds(message: string): number | null {
