@@ -107,16 +107,31 @@ export function extractPreferredDays(message: string): PreferredDaysResult | nul
 
 export function extract5kPaceSeconds(message: string): number | null {
   const m = message.toLowerCase();
+
+  // Format: "5:30/км"
   if (/(\d+):(\d{2})\s*\/\s*км/.test(m)) {
     const mm = m.match(/(\d+):(\d{2})\s*\/\s*км/);
     if (!mm) return null;
     return Number(mm[1]) * 60 + Number(mm[2]);
   }
+
+  // Format: "25 мин" or "25 минут"
   const time = m.match(/(\d{2,3})\s*мин/);
   if (time) {
     const totalMin = Number(time[1]);
     return Math.round((totalMin * 60) / 5);
   }
+
+  // Fallback: just a number (e.g., "25") - assume it's minutes for 5K
+  const justNumber = m.match(/^\s*(\d{2})\s*$/);
+  if (justNumber) {
+    const totalMin = Number(justNumber[1]);
+    // Sanity check: 15-60 minutes for 5K is reasonable
+    if (totalMin >= 15 && totalMin <= 60) {
+      return Math.round((totalMin * 60) / 5);
+    }
+  }
+
   return null;
 }
 

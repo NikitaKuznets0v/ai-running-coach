@@ -37,47 +37,38 @@ export async function parseLabTestDocument(fileUrl: string): Promise<LabTestData
     imageUrl = await convertPdfToImage(pdfBuffer);
   }
 
-  const systemPrompt = `Ты — специалист по анализу результатов лабораторных беговых тестов.
+  const systemPrompt = `You are a specialist in analyzing running lab test results. Extract the following data from the document image.
 
-Извлеки следующие данные из документа (если они есть):
+LOOK FOR these key terms (in Russian or English):
+- VO2max / МПК - in ml/kg/min
+- ПАНО / LT2 / Anaerobic Threshold - heart rate in bpm
+- Аэробный порог / LT1 / Aerobic Threshold - heart rate in bpm
+- ЧСС / HR / Heart Rate zones (Z1, Z2, Z3, Z4, Z5)
+- Темп / Pace at different thresholds
 
-1. **VO2max** (мл/кг/мин) - максимальное потребление кислорода
-2. **ЧСС на LT1** (аэробный порог) - уд/мин
-3. **ЧСС на LT2** (анаэробный порог / ПАНО) - уд/мин
-4. **ЧСС на VO2max** - уд/мин
-5. **HR зоны** (Z1-Z5) - диапазоны пульса:
-   - Z1: до X уд/мин
-   - Z2: от A до B уд/мин
-   - Z3: от C до D уд/мин
-   - Z4: от E до F уд/мин
-   - Z5: от G и более
-6. **Темпы на порогах**:
-   - LT1 pace (мин/км)
-   - LT2 pace (мин/км)
-   - VO2max pace (мин/км)
+SEARCH CAREFULLY through all text, tables, graphs, and numbers in the image.
 
-Верни данные в формате JSON:
+Return data as JSON:
 {
-  "vo2max": число или null,
-  "lt1_hr": число или null,
-  "lt2_hr": число или null (это и есть LTHR),
-  "vo2max_hr": число или null,
-  "hr_zone1_max": число или null,
-  "hr_zone2_max": число или null,
-  "hr_zone3_max": число или null,
-  "hr_zone4_max": число или null,
-  "hr_zone5_max": число или null,
-  "lt1_pace_min_km": "M:SS" или null,
-  "lt2_pace_min_km": "M:SS" или null,
-  "vo2max_pace_min_km": "M:SS" или null
+  "vo2max": number or null (ml/kg/min),
+  "lt1_hr": number or null (bpm at aerobic threshold),
+  "lt2_hr": number or null (bpm at anaerobic threshold/ПАНО),
+  "vo2max_hr": number or null (bpm at VO2max),
+  "hr_zone1_max": number or null (upper limit of Zone 1),
+  "hr_zone2_max": number or null (upper limit of Zone 2),
+  "hr_zone3_max": number or null (upper limit of Zone 3),
+  "hr_zone4_max": number or null (upper limit of Zone 4),
+  "hr_zone5_max": number or null (upper limit of Zone 5),
+  "lt1_pace_min_km": "M:SS" or null (pace at LT1),
+  "lt2_pace_min_km": "M:SS" or null (pace at LT2),
+  "vo2max_pace_min_km": "M:SS" or null (pace at VO2max)
 }
 
-**Важно:**
-- Если какого-то значения нет в документе, верни null
-- ЧСС указывай целыми числами (уд/мин)
-- VO2max указывай с точностью до 1 знака после запятой
-- Для HR зон используй ВЕРХНЮЮ границу каждой зоны
-- Темпы верни в формате "M:SS" (например, "5:53")`;
+IMPORTANT:
+- Look at ALL text in the image, including small print, tables, and legends
+- If a value is not found, return null (NOT a string "null")
+- HR zones: return the UPPER boundary of each zone
+- Be thorough - scan the entire image for data`;
 
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
