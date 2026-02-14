@@ -32,27 +32,31 @@ function buildOnboardingSummary(user: UserProfile): string {
     'marathon': 'марафон'
   };
 
-  const distance = distanceNames[user.race_distance || ''] || user.race_distance_km ? `${user.race_distance_km} км` : 'дистанцию';
-  const raceDate = user.race_date || 'скоро';
+  const distance = distanceNames[user.race_distance || ''] || (user.race_distance_km ? `${user.race_distance_km} км` : 'дистанцию');
   const targetTime = user.target_time_seconds ? formatTime(user.target_time_seconds) : null;
 
   let summary = `Отлично! Я понял:\n`;
-  summary += `📅 Мы готовимся к забегу **${distance}** на **${raceDate}**.\n`;
+  if (user.race_date) {
+    summary += `📅 Мы готовимся к забегу <b>${distance}</b> на <b>${user.race_date}</b>.\n`;
+  } else {
+    summary += `📅 Мы готовимся к забегу <b>${distance}</b>.\n`;
+  }
   if (targetTime) {
-    summary += `🎯 Твоя цель — пробежать за **${targetTime}**.\n`;
+    summary += `🎯 Твоя цель — пробежать за <b>${targetTime}</b>.\n`;
   }
 
   // Add race prediction if we have 5K pace
   if (user.current_5k_pace_seconds && user.race_distance) {
-    const prediction = predictRaceTime(user.current_5k_pace_seconds, user.race_distance);
+    const fiveKTotalSeconds = user.current_5k_pace_seconds * 5; // pace per km → total 5K time
+    const prediction = predictRaceTime(fiveKTotalSeconds, user.race_distance);
     const assessment = targetTime && user.target_time_seconds
       ? assessGoalRealism(user.target_time_seconds, prediction.realistic)
       : null;
 
-    summary += `\n**Мой прогноз** на ${distance} на основе текущего уровня подготовки:\n`;
-    summary += `• Оптимистичный сценарий: **${formatTime(prediction.optimistic)}**\n`;
-    summary += `• Реалистичный прогноз: **${formatTime(prediction.realistic)}**\n`;
-    summary += `• Консервативная оценка: **${formatTime(prediction.pessimistic)}**\n`;
+    summary += `\n<b>Мой прогноз</b> на ${distance} на основе текущего уровня подготовки:\n`;
+    summary += `• Оптимистичный сценарий: <b>${formatTime(prediction.optimistic)}</b>\n`;
+    summary += `• Реалистичный прогноз: <b>${formatTime(prediction.realistic)}</b>\n`;
+    summary += `• Консервативная оценка: <b>${formatTime(prediction.pessimistic)}</b>\n`;
 
     if (assessment) {
       summary += `\n💬 ${assessment.message}\n`;
@@ -187,7 +191,7 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
       await upsertUserProfile({ telegram_id: user.telegram_id, ...partialPatch });
 
       return {
-        reply: `Я правильно понял, что ты хочешь тренироваться **${estimatedCount} ${estimatedCount === 1 ? 'день' : estimatedCount < 5 ? 'дня' : 'дней'} в неделю**?\n\nОтветь "да" или укажи правильное количество дней (например, "5 дней").`,
+        reply: `Я правильно понял, что ты хочешь тренироваться <b>${estimatedCount} ${estimatedCount === 1 ? 'день' : estimatedCount < 5 ? 'дня' : 'дней'} в неделю</b>?\n\nОтветь "да" или укажи правильное количество дней (например, "5 дней").`,
         updated: { ...user, ...partialPatch, onboarding_stage: 'training_freq_confirm' as const }
       };
     }

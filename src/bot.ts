@@ -46,7 +46,7 @@ bot.on('message:text', async (ctx) => {
 
   if (user.onboarding_stage !== 'completed') {
     const { reply } = await handleOnboarding(user, text);
-    await ctx.reply(reply);
+    await ctx.reply(reply, { parse_mode: 'HTML' });
     await appendChatHistory({
       user_id: user.id,
       role: 'assistant',
@@ -185,7 +185,7 @@ bot.on('message:photo', async (ctx) => {
       // If during onboarding, continue with next question ONLY if data was extracted successfully
       if (existing.onboarding_stage === 'lab_testing' && hasData) {
         const { reply: nextReply } = await handleOnboarding(updated, 'да, есть данные');
-        await ctx.reply(nextReply);
+        await ctx.reply(nextReply, { parse_mode: 'HTML' });
         await appendChatHistory({
           user_id: updated.id,
           role: 'assistant',
@@ -305,7 +305,7 @@ bot.on('message:voice', async (ctx) => {
 
     if (user.onboarding_stage !== 'completed') {
       const { reply } = await handleOnboarding(user, text);
-      await ctx.reply(reply);
+      await ctx.reply(reply, { parse_mode: 'HTML' });
       await appendChatHistory({
         user_id: user.id,
         role: 'assistant',
@@ -445,7 +445,7 @@ bot.on('message:document', async (ctx) => {
     // If during onboarding, continue with next question ONLY if data was extracted successfully
     if (existing.onboarding_stage === 'lab_testing' && hasData) {
       const { reply: nextReply } = await handleOnboarding(updated, 'да, есть данные');
-      await ctx.reply(nextReply);
+      await ctx.reply(nextReply, { parse_mode: 'HTML' });
       await appendChatHistory({
         user_id: updated.id,
         role: 'assistant',
@@ -454,7 +454,6 @@ bot.on('message:document', async (ctx) => {
         telegram_message_id: ctx.message.message_id
       });
     } else if (existing.onboarding_stage === 'lab_testing' && !hasData) {
-      // During onboarding but data not extracted - stay on lab_testing stage
       await appendChatHistory({
         user_id: updated.id,
         role: 'assistant',
@@ -463,7 +462,6 @@ bot.on('message:document', async (ctx) => {
         telegram_message_id: ctx.message.message_id
       });
     } else if (hasData) {
-      // Outside onboarding and data extracted - save and confirm
       await ctx.reply('✨ Данные сохранены! Они будут учтены при построении следующих тренировочных планов.\n\nЕсли хочешь пересчитать текущий план с учётом новых пульсовых зон, напиши "пересчитай план".');
       await appendChatHistory({
         user_id: updated.id,
@@ -473,7 +471,6 @@ bot.on('message:document', async (ctx) => {
         telegram_message_id: ctx.message.message_id
       });
     } else {
-      // Outside onboarding but data not extracted - just log
       await appendChatHistory({
         user_id: updated.id,
         role: 'assistant',
