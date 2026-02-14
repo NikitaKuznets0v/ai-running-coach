@@ -138,25 +138,27 @@ bot.on('message:photo', async (ctx) => {
       const labData = await parseLabTestDocument(fileUrl);
       logInfo('lab_test_parsed', { update_id: updateId, telegram_id: telegramId, data: labData });
 
-      // Update user profile with lab test data
-      const updateData: any = {
-        telegram_id: telegramId,
-        has_lab_testing: true
-      };
-
-      if (labData.vo2max) updateData.vo2max = labData.vo2max;
-      if (labData.lthr) updateData.lthr = labData.lthr;
-      if (labData.hr_zone1_max) updateData.hr_zone1_max = labData.hr_zone1_max;
-      if (labData.hr_zone2_max) updateData.hr_zone2_max = labData.hr_zone2_max;
-      if (labData.hr_zone3_max) updateData.hr_zone3_max = labData.hr_zone3_max;
-      if (labData.hr_zone4_max) updateData.hr_zone4_max = labData.hr_zone4_max;
-      if (labData.hr_zone5_max) updateData.hr_zone5_max = labData.hr_zone5_max;
-
-      const updated = await upsertUserProfile(updateData);
-
       // Check if any data was extracted
       const hasData = labData.vo2max || labData.lthr || labData.lt1_hr ||
                       labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max;
+
+      // Update user profile with lab test data ONLY if we have data
+      const updateData: any = {
+        telegram_id: telegramId
+      };
+
+      if (hasData) {
+        updateData.has_lab_testing = true;
+        if (labData.vo2max) updateData.vo2max = labData.vo2max;
+        if (labData.lthr) updateData.lthr = labData.lthr;
+        if (labData.hr_zone1_max) updateData.hr_zone1_max = labData.hr_zone1_max;
+        if (labData.hr_zone2_max) updateData.hr_zone2_max = labData.hr_zone2_max;
+        if (labData.hr_zone3_max) updateData.hr_zone3_max = labData.hr_zone3_max;
+        if (labData.hr_zone4_max) updateData.hr_zone4_max = labData.hr_zone4_max;
+        if (labData.hr_zone5_max) updateData.hr_zone5_max = labData.hr_zone5_max;
+      }
+
+      const updated = hasData ? await upsertUserProfile(updateData) : existing;
 
       // Format response
       let reply = '';
@@ -396,25 +398,27 @@ bot.on('message:document', async (ctx) => {
     const labData = await parseLabTestDocument(fileUrl);
     logInfo('lab_test_parsed', { update_id: updateId, telegram_id: telegramId, data: labData });
 
-    // Update user profile with lab test data
-    const updateData: any = {
-      telegram_id: telegramId,
-      has_lab_testing: true
-    };
-
-    if (labData.vo2max) updateData.vo2max = labData.vo2max;
-    if (labData.lthr) updateData.lthr = labData.lthr;
-    if (labData.hr_zone1_max) updateData.hr_zone1_max = labData.hr_zone1_max;
-    if (labData.hr_zone2_max) updateData.hr_zone2_max = labData.hr_zone2_max;
-    if (labData.hr_zone3_max) updateData.hr_zone3_max = labData.hr_zone3_max;
-    if (labData.hr_zone4_max) updateData.hr_zone4_max = labData.hr_zone4_max;
-    if (labData.hr_zone5_max) updateData.hr_zone5_max = labData.hr_zone5_max;
-
-    const updated = await upsertUserProfile(updateData);
-
     // Check if any data was extracted
     const hasData = labData.vo2max || labData.lthr || labData.lt1_hr ||
                     labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max;
+
+    // Update user profile with lab test data ONLY if we have data
+    const updateData: any = {
+      telegram_id: telegramId
+    };
+
+    if (hasData) {
+      updateData.has_lab_testing = true;
+      if (labData.vo2max) updateData.vo2max = labData.vo2max;
+      if (labData.lthr) updateData.lthr = labData.lthr;
+      if (labData.hr_zone1_max) updateData.hr_zone1_max = labData.hr_zone1_max;
+      if (labData.hr_zone2_max) updateData.hr_zone2_max = labData.hr_zone2_max;
+      if (labData.hr_zone3_max) updateData.hr_zone3_max = labData.hr_zone3_max;
+      if (labData.hr_zone4_max) updateData.hr_zone4_max = labData.hr_zone4_max;
+      if (labData.hr_zone5_max) updateData.hr_zone5_max = labData.hr_zone5_max;
+    }
+
+    const updated = hasData ? await upsertUserProfile(updateData) : existing;
 
     // Format response
     let reply = '';
