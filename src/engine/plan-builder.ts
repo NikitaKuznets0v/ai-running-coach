@@ -67,13 +67,15 @@ function adjustDistancesByPhase(workouts: WorkoutPlan[], phase?: StrategyPhase |
 
   const target = Math.min(max, Math.max(min, total));
   const scale = total > 0 ? target / total : 1;
-  return workouts.map((w) => ({ ...w, distance_km: Math.round(w.distance_km * scale * 10) / 10 }));
+  // Round to nearest 0.5 km (500m) for easier input on watches/treadmills
+  return workouts.map((w) => ({ ...w, distance_km: Math.round(w.distance_km * scale * 2) / 2 }));
 }
 
 function adjustDistancesByVolume(workouts: WorkoutPlan[], percent = 0) {
   if (!percent) return workouts;
   const scale = 1 + percent / 100;
-  return workouts.map((w) => ({ ...w, distance_km: Math.round(w.distance_km * scale * 10) / 10 }));
+  // Round to nearest 0.5 km (500m) for easier input on watches/treadmills
+  return workouts.map((w) => ({ ...w, distance_km: Math.round(w.distance_km * scale * 2) / 2 }));
 }
 
 function getTargetHr(type: WorkoutType, age?: number | null): string | null {
