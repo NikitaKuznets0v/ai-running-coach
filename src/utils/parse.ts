@@ -69,23 +69,30 @@ export function extractWeeklyRuns(message: string): number | null {
 export function extractPreferredDays(message: string): string | null {
   const m = message.toLowerCase();
 
-  // First check for full names, then abbreviations to avoid duplicates
-  const fullNames = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
-  const abbrevs = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+  // Patterns with both full and abbreviated forms
+  const dayPatterns = [
+    { full: /понедельник/, abbr: /пн(?![а-я])/, name: 'понедельник', abbrName: 'пн' },
+    { full: /вторник/, abbr: /вт(?![а-я])/, name: 'вторник', abbrName: 'вт' },
+    { full: /сред[ауые]/, abbr: /ср(?![а-я])/, name: 'среда', abbrName: 'ср' },
+    { full: /четверг/, abbr: /чт(?![а-я])/, name: 'четверг', abbrName: 'чт' },
+    { full: /пятниц[ауые]/, abbr: /пт(?![а-я])/, name: 'пятница', abbrName: 'пт' },
+    { full: /суббот[ауые]/, abbr: /сб(?![а-я])/, name: 'суббота', abbrName: 'сб' },
+    { full: /воскресень[еяь]/, abbr: /вс(?![а-я])/, name: 'воскресенье', abbrName: 'вс' }
+  ];
 
   const found: string[] = [];
+  const foundSet = new Set<string>();
 
-  // Add full names
-  for (const day of fullNames) {
-    if (m.includes(day)) found.push(day);
-  }
-
-  // Add abbreviations only if their full name wasn't already added
-  for (let i = 0; i < abbrevs.length; i++) {
-    const abbr = abbrevs[i];
-    const full = fullNames[i];
-    if (m.includes(abbr) && !found.includes(full)) {
-      found.push(abbr);
+  for (const { full, abbr, name, abbrName } of dayPatterns) {
+    // Check full name first (including declined forms)
+    if (full.test(m) && !foundSet.has(name)) {
+      found.push(name);
+      foundSet.add(name);
+    }
+    // Check abbreviation only if full name wasn't found
+    else if (abbr.test(m) && !foundSet.has(name)) {
+      found.push(abbrName);
+      foundSet.add(name);
     }
   }
 
