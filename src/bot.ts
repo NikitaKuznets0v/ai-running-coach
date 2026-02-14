@@ -11,6 +11,7 @@ import { handleScheduleChange } from './handlers/schedule.js';
 import { handlePlanExplain } from './handlers/plan-explain.js';
 import { logInfo, logError } from './utils/logger.js';
 import { handlePhotoLog } from './handlers/photo-log.js';
+import { transcribeVoice } from './services/openai.js';
 
 export const bot = new Bot(CONFIG.telegramToken);
 
@@ -135,5 +136,119 @@ bot.on('message:photo', async (ctx) => {
   } catch (err: any) {
     logError('photo_handler_error', { update_id: updateId, telegram_id: telegramId, error: String(err?.message || err) });
     await ctx.reply('Ошибка при обработке скриншота. Попробуй ещё раз.');
+  }
+});
+
+bot.on('message:voice', async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const updateId = ctx.update.update_id;
+  logInfo('incoming_voice', { update_id: updateId, telegram_id: telegramId });
+
+  await ctx.api.sendChatAction(telegramId, 'typing');
+
+  try {
+    const voice = ctx.message.voice;
+    if (!voice) {
+      await ctx.reply('Не вижу голосовое. Попробуй ещё раз.');
+      return;
+    }
+
+    const file = await ctx.api.getFile(voice.file_id);
+    if (!file.file_path) {
+      await ctx.reply('Не удалось получить файл. Попробуй ещё раз.');
+      return;
+    }
+
+    // Download voice file from Telegram
+    const fileUrl = `https://api.telegram.org/file/bot${CONFIG.telegramToken}/${file.file_path}`;
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      await ctx.reply('Ошибка при скачивании голосового. Попробуй ещё раз.');
+      return;
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const blob = new Blob([buffer], { type: 'audio/ogg' });
+    const voiceFile = new File([blob], 'voice.ogg', { type: 'audio/ogg' });
+
+    // Transcribe with Whisper API
+    logInfo('transcribing_voice', { update_id: updateId, telegram_id: telegramId });
+    const text = await transcribeVoice(voiceFile, 'voice.ogg');
+    logInfo('transcription_done', { update_id: updateId, telegram_id: telegramId, text });
+
+    if (!text || text.trim().length === 0) {
+      await ctx.reply('Не удалось распознать голос. Попробуй ещё раз.');
+      return;
+    }
+
+    // Process transcribed text as regular message
+    const existing = await getUserByTelegramId(telegramId);
+    const user = existing || await upsertUserProfile({
+      telegram_id: telegramId,
+      first_name: ctx.from?.first_name || null,
+      last_name: ctx.from?.last_name || null,
+      username: ctx.from?.username || null,
+      language: ctx.from?.language_code || 'ru',
+      onboarding_stage: 'started'
+    });
+
+    await appendChatHistory({
+      user_id: user.id,
+      role: 'user',
+      content: `[Голосовое]: ${text}`,
+      message_type: user.onboarding_stage !== 'completed' ? 'onboarding' : 'general',
+      telegram_message_id: ctx.message.message_id
+    });
+
+    if (user.onboarding_stage !== 'completed') {
+      const { reply } = await handleOnboarding(user, text);
+      await ctx.reply(reply);
+      await appendChatHistory({
+        user_id: user.id,
+        role: 'assistant',
+        content: reply,
+        message_type: 'onboarding'
+      });
+      return;
+    }
+
+    const intent = detectIntent(text);
+    let reply = 'Пока я понимаю только план и онбординг. Следующие функции будут добавлены.';
+
+    if (intent === 'plan_request') {
+      reply = await handlePlanRequest(user, text);
+    } else if (intent === 'plan_convert') {
+      reply = await handlePlanConvert(user);
+    } else if (intent === 'training_log') {
+      reply = await handleTrainingLog(user, text);
+    } else {
+      const adjust = await handlePlanAdjust(user, text);
+      if (adjust) {
+        reply = adjust;
+      } else {
+        const schedule = await handleScheduleChange(user, text);
+        if (schedule) {
+          reply = schedule;
+        } else {
+          const explain = await handlePlanExplain(user, text);
+          reply = explain || await handleGeneral(user, text);
+        }
+      }
+    }
+
+    await ctx.reply(reply);
+    await appendChatHistory({
+      user_id: user.id,
+      role: 'assistant',
+      content: reply,
+      message_type: intent === 'plan_request' ? 'planning' : intent === 'training_log' ? 'logging' : 'general'
+    });
+
+    logInfo('voice_reply_sent', { update_id: updateId, telegram_id: telegramId, intent });
+  } catch (err: any) {
+    logError('voice_handler_error', { update_id: updateId, telegram_id: telegramId, error: String(err?.message || err) });
+    await ctx.reply('Ошибка при обработке голосового. Попробуй ещё раз.');
   }
 });

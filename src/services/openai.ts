@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { CONFIG } from '../config.js';
+import type { Uploadable } from 'openai/uploads.js';
 
 const client = new OpenAI({ apiKey: CONFIG.openaiApiKey });
 
@@ -22,4 +23,17 @@ export async function extractWithOpenAI(systemPrompt: string, userMessage: strin
   } catch {
     return {};
   }
+}
+
+export async function transcribeVoice(audioFile: Uploadable, filename: string): Promise<string> {
+  if (!CONFIG.openaiApiKey) throw new Error('OPENAI_API_KEY not set');
+
+  const transcription = await client.audio.transcriptions.create({
+    file: audioFile,
+    model: 'whisper-1',
+    language: 'ru',
+    prompt: 'Транскрибация голосового сообщения пользователя боту о беге и тренировках.'
+  });
+
+  return transcription.text;
 }
