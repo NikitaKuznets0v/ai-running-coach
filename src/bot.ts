@@ -124,16 +124,87 @@ bot.on('message:photo', async (ctx) => {
       return;
     }
 
-    const caption = ctx.message.caption || undefined;
-    const reply = await handlePhotoLog(existing, file.file_path, caption);
-    await ctx.reply(reply);
-    await appendChatHistory({
-      user_id: existing.id,
-      role: 'assistant',
-      content: reply,
-      message_type: 'logging',
-      telegram_message_id: ctx.message.message_id
-    });
+    const caption = ctx.message.caption || '';
+
+    // Check if this is a lab test photo (by caption keywords or onboarding stage)
+    const isLabTest = /тест|vo2max|пано|lthr|зон[аы]|порог|аэробн|анаэробн|лаборатор/i.test(caption)
+                      || existing.onboarding_stage === 'lab_testing';
+
+    if (isLabTest) {
+      // Parse as lab test document
+      const fileUrl = `https://api.telegram.org/file/bot${CONFIG.telegramToken}/${file.file_path}`;
+      logInfo('parsing_lab_test_photo', { update_id: updateId, telegram_id: telegramId });
+
+      const labData = await parseLabTestDocument(fileUrl);
+      logInfo('lab_test_parsed', { update_id: updateId, telegram_id: telegramId, data: labData });
+
+      // Update user profile with lab test data
+      const updateData: any = {
+        telegram_id: telegramId,
+        has_lab_testing: true
+      };
+
+      if (labData.vo2max) updateData.vo2max = labData.vo2max;
+      if (labData.lthr) updateData.lthr = labData.lthr;
+      if (labData.hr_zone1_max) updateData.hr_zone1_max = labData.hr_zone1_max;
+      if (labData.hr_zone2_max) updateData.hr_zone2_max = labData.hr_zone2_max;
+      if (labData.hr_zone3_max) updateData.hr_zone3_max = labData.hr_zone3_max;
+      if (labData.hr_zone4_max) updateData.hr_zone4_max = labData.hr_zone4_max;
+      if (labData.hr_zone5_max) updateData.hr_zone5_max = labData.hr_zone5_max;
+
+      const updated = await upsertUserProfile(updateData);
+
+      // Format response
+      let reply = '✅ Данные лабораторного теста успешно распознаны!\n\n';
+      if (labData.vo2max) reply += `• VO2max: ${labData.vo2max} мл/кг/мин\n`;
+      if (labData.lthr) reply += `• LTHR (ПАНО): ${labData.lthr} уд/мин\n`;
+      if (labData.lt1_hr) reply += `• LT1 (аэробный порог): ${labData.lt1_hr} уд/мин\n`;
+
+      if (labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max) {
+        reply += `\n📊 Пульсовые зоны:\n`;
+        if (labData.hr_zone1_max) reply += `• Z1 (восстановление): до ${labData.hr_zone1_max} уд/мин\n`;
+        if (labData.hr_zone2_max) reply += `• Z2 (аэробная): до ${labData.hr_zone2_max} уд/мин\n`;
+        if (labData.hr_zone3_max) reply += `• Z3 (темповая): до ${labData.hr_zone3_max} уд/мин\n`;
+        if (labData.hr_zone4_max) reply += `• Z4 (пороговая): до ${labData.hr_zone4_max} уд/мин\n`;
+        if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
+      }
+
+      await ctx.reply(reply);
+
+      // If during onboarding, continue with next question
+      if (existing.onboarding_stage === 'lab_testing') {
+        const { reply: nextReply } = await handleOnboarding(updated, 'да, есть данные');
+        await ctx.reply(nextReply);
+        await appendChatHistory({
+          user_id: updated.id,
+          role: 'assistant',
+          content: reply + '\n\n' + nextReply,
+          message_type: 'onboarding',
+          telegram_message_id: ctx.message.message_id
+        });
+      } else {
+        // Outside onboarding - just save and confirm
+        await ctx.reply('✨ Данные сохранены! Они будут учтены при построении следующих тренировочных планов.\n\nЕсли хочешь пересчитать текущий план с учётом новых пульсовых зон, напиши "пересчитай план".');
+        await appendChatHistory({
+          user_id: updated.id,
+          role: 'assistant',
+          content: reply + '\n\n✨ Данные сохранены и будут использоваться для следующих планов.',
+          message_type: 'logging',
+          telegram_message_id: ctx.message.message_id
+        });
+      }
+    } else {
+      // Parse as training log
+      const reply = await handlePhotoLog(existing, file.file_path, caption || undefined);
+      await ctx.reply(reply);
+      await appendChatHistory({
+        user_id: existing.id,
+        role: 'assistant',
+        content: reply,
+        message_type: 'logging',
+        telegram_message_id: ctx.message.message_id
+      });
+    }
   } catch (err: any) {
     logError('photo_handler_error', { update_id: updateId, telegram_id: telegramId, error: String(err?.message || err) });
     await ctx.reply('Ошибка при обработке скриншота. Попробуй ещё раз.');
@@ -268,12 +339,6 @@ bot.on('message:document', async (ctx) => {
       return;
     }
 
-    // Only process during lab_testing onboarding stage
-    if (existing.onboarding_stage !== 'lab_testing') {
-      await ctx.reply('Документы с лабораторными тестами можно загрузить только во время онбординга на этапе "Лабораторное тестирование".');
-      return;
-    }
-
     const document = ctx.message.document;
     if (!document) {
       await ctx.reply('Не вижу документ. Попробуй ещё раз.');
@@ -335,21 +400,30 @@ bot.on('message:document', async (ctx) => {
       if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
     }
 
-    reply += '\n✨ Эти данные будут учтены при построении твоего тренировочного плана!';
-
     await ctx.reply(reply);
 
-    // Continue onboarding
-    const { reply: nextReply } = await handleOnboarding(updated, 'да, есть данные');
-    await ctx.reply(nextReply);
-
-    await appendChatHistory({
-      user_id: updated.id,
-      role: 'assistant',
-      content: reply + '\n\n' + nextReply,
-      message_type: 'onboarding',
-      telegram_message_id: ctx.message.message_id
-    });
+    // If during onboarding, continue with next question
+    if (existing.onboarding_stage === 'lab_testing') {
+      const { reply: nextReply } = await handleOnboarding(updated, 'да, есть данные');
+      await ctx.reply(nextReply);
+      await appendChatHistory({
+        user_id: updated.id,
+        role: 'assistant',
+        content: reply + '\n\n' + nextReply,
+        message_type: 'onboarding',
+        telegram_message_id: ctx.message.message_id
+      });
+    } else {
+      // Outside onboarding - just save and confirm
+      await ctx.reply('✨ Данные сохранены! Они будут учтены при построении следующих тренировочных планов.\n\nЕсли хочешь пересчитать текущий план с учётом новых пульсовых зон, напиши "пересчитай план".');
+      await appendChatHistory({
+        user_id: updated.id,
+        role: 'assistant',
+        content: reply + '\n\n✨ Данные сохранены и будут использоваться для следующих планов.',
+        message_type: 'logging',
+        telegram_message_id: ctx.message.message_id
+      });
+    }
 
   } catch (err: any) {
     logError('document_handler_error', { update_id: updateId, telegram_id: telegramId, error: String(err?.message || err) });
