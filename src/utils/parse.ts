@@ -172,13 +172,31 @@ function parseTargetTime(text: string): number | null {
     return Number(hhmm[1]) * 3600 + Number(hhmm[2]) * 60;
   }
 
-  // "110 мин", "90 минут"
+  // "3 часа 15 минут", "час 59 минут" (digits)
+  const hourMin = m.match(/(\d+)\s*час[а-яов]*\s+(\d+)\s*мин/);
+  if (hourMin) return Number(hourMin[1]) * 3600 + Number(hourMin[2]) * 60;
+
+  // "час 59 минут" (word "час" + digit minutes)
+  const hourWordMin = m.match(/час\s+(\d+)\s*мин/);
+  if (hourWordMin) return 3600 + Number(hourWordMin[1]) * 60;
+
+  // "4 часа", "3 часов" (only hours, no minutes)
+  const hoursOnly = m.match(/(\d+)\s*час[а-яов]*/);
+  if (hoursOnly && !m.match(/(\d+)\s*час[а-яов]*\s+(\d+)/)) {
+    return Number(hoursOnly[1]) * 3600;
+  }
+
+  // "110 мин", "90 минут", "55 минут"
   const mins = m.match(/\b(\d{2,3})\s*мин/);
   if (mins) return Number(mins[1]) * 60;
 
-  // "час пятьдесят", "два часа тридцать", "полтора часа"
+  // "час пятьдесят", "два часа тридцать", "полтора часа" (word-based)
   for (const [word, hours] of Object.entries(HOUR_WORDS)) {
     if (m.includes(word)) {
+      // Skip if there's a digit right before this word (e.g., "4 часа")
+      const digitBeforeWord = new RegExp(`\\d+\\s*${word}`).test(m);
+      if (digitBeforeWord) continue;
+
       let seconds = hours * 3600;
       // Look for minutes after the hour word
       for (const [minWord, minVal] of Object.entries(MINUTE_WORDS)) {
@@ -265,10 +283,17 @@ export function extractRaceDetails(message: string): RaceDetailsResult {
   let race_distance: string | null = null;
   let race_distance_km: number | null = null;
 
-  if (/полумарафон|half/.test(m)) { race_distance = 'half'; race_distance_km = 21.1; }
-  else if (/марафон|marathon/.test(m)) { race_distance = 'marathon'; race_distance_km = 42.2; }
-  else if (/10\s*k|10к|10 км/.test(m)) { race_distance = '10k'; race_distance_km = 10; }
-  else if (/5\s*k|5к|5 км/.test(m)) { race_distance = '5k'; race_distance_km = 5; }
+  // Check полумарафон first (before марафон to avoid substring match)
+  if (/полумарафон|полумара|полумарик|half/.test(m)) { race_distance = 'half'; race_distance_km = 21.1; }
+  else if (/марафон|(?<!полу)мара(?!фон)|marathon/.test(m)) { race_distance = 'marathon'; race_distance_km = 42.2; }
+  else if (/10\s*k|10к|10 км|десятка/.test(m)) { race_distance = '10k'; race_distance_km = 10; }
+  else if (/5\s*k|5к|5 км|пятёрка|пятерка|пятикилометровка/.test(m)) { race_distance = '5k'; race_distance_km = 5; }
+
+  // Fallback: custom distances (e.g., "30 км", "15 километров")
+  if (!race_distance_km) {
+    const customKm = m.match(/(\d+)\s*(?:км|километр)/);
+    if (customKm) race_distance_km = Number(customKm[1]);
+  }
 
   // Parse specific dates
   const dateIso = m.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);

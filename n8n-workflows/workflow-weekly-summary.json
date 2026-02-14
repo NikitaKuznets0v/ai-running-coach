@@ -1,308 +1,442 @@
 {
-    "name": "AI Running Coach - Weekly Summary",
-    "nodes": [
-        {
-            "id": "schedule-trigger",
-            "parameters": {
-                "rule": {
-                    "interval": [
-                        {
-                            "field": "weeks",
-                            "weeksInterval": 1,
-                            "triggerAtDay": [0],
-                            "triggerAtHour": 20,
-                            "triggerAtMinute": 0
-                        }
-                    ]
-                }
-            },
-            "name": "Schedule Trigger",
-            "type": "n8n-nodes-base.scheduleTrigger",
-            "typeVersion": 1.2,
-            "position": [240, 300]
-        },
-        {
-            "id": "get-active-users",
-            "parameters": {
-                "operation": "getAll",
-                "tableId": "users",
-                "returnAll": true,
-                "filterType": "string",
-                "RLCfilterString": "=onboarding_stage=eq.completed&is_active=eq.true"
-            },
-            "name": "Get Active Users",
-            "type": "n8n-nodes-base.supabase",
-            "typeVersion": 1,
-            "position": [440, 300],
-            "alwaysOutputData": true,
-            "credentials": {
-                "supabaseApi": {
-                    "id": "CJ3Z1MvRt6BxblaB",
-                    "name": "Supabase - Running Coach"
-                }
+  "name": "AI Running Coach - Weekly Summary",
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                0
+              ],
+              "triggerAtHour": 20,
+              "triggerAtMinute": 0
             }
-        },
-        {
-            "id": "split-in-batches",
-            "parameters": {
-                "batchSize": 1,
-                "options": {}
-            },
-            "name": "SplitInBatches",
-            "type": "n8n-nodes-base.splitInBatches",
-            "typeVersion": 3,
-            "position": [640, 300]
-        },
-        {
-            "id": "get-week-trainings",
-            "parameters": {
-                "operation": "getAll",
-                "tableId": "trainings",
-                "returnAll": true,
-                "filterType": "string",
-                "RLCfilterString": "=user_id=eq.{{ $('SplitInBatches').first().json.id }}&date=gte.{{ $now.minus({days: $now.weekday - 1}).toFormat('yyyy-MM-dd') }}&order=date.desc"
-            },
-            "name": "Get Week Trainings",
-            "type": "n8n-nodes-base.supabase",
-            "typeVersion": 1,
-            "position": [840, 300],
-            "alwaysOutputData": true,
-            "credentials": {
-                "supabaseApi": {
-                    "id": "CJ3Z1MvRt6BxblaB",
-                    "name": "Supabase - Running Coach"
-                }
-            }
-        },
-        {
-            "id": "summarize-week",
-            "parameters": {
-                "functionCode": "const user = $('SplitInBatches').first().json;\nconst trainings = items.filter(t => t.json && t.json.id);\n\nlet totalKm = 0, totalDuration = 0, totalHr = 0, hrCount = 0;\nconst types = [];\nconst details = [];\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\ntrainings.forEach(t => {\n  totalKm += parseFloat(t.json.distance_km) || 0;\n  totalDuration += parseInt(t.json.duration_seconds) || 0;\n  if (t.json.avg_heart_rate) { totalHr += parseInt(t.json.avg_heart_rate); hrCount++; }\n  if (t.json.type) types.push(t.json.type);\n  details.push({\n    date: t.json.date,\n    km: t.json.distance_km,\n    duration: t.json.duration_seconds,\n    pace: t.json.avg_pace_seconds,\n    hr: t.json.avg_heart_rate,\n    type: t.json.type\n  });\n});\n\nconst avgPace = totalKm > 0 ? Math.round(totalDuration / totalKm) : 0;\nconst avgHr = hrCount > 0 ? Math.round(totalHr / hrCount) : null;\n\nreturn [{json: {\n  user_id: user.id,\n  telegram_id: user.telegram_id,\n  first_name: user.first_name || 'Друг',\n  weekly_runs: user.weekly_runs || 3,\n  level: user.level || 'intermediate',\n  current_5k_pace_seconds: user.current_5k_pace_seconds,\n  race_distance: user.race_distance,\n  race_date: user.race_date,\n  week_sessions: trainings.length,\n  week_km: Math.round(totalKm * 10) / 10,\n  week_duration: totalDuration,\n  week_avg_pace: avgPace,\n  week_avg_hr: avgHr,\n  training_types: types,\n  training_details: details,\n  formatPaceStr: formatPace(avgPace)\n}}];"
-            },
-            "name": "Summarize Week",
-            "type": "n8n-nodes-base.function",
-            "typeVersion": 1,
-            "position": [1040, 300]
-        },
-        {
-            "id": "get-strategy",
-            "parameters": {
-                "operation": "getAll",
-                "tableId": "training_strategies",
-                "returnAll": false,
-                "limit": 1,
-                "filterType": "string",
-                "RLCfilterString": "=user_id=eq.{{ $json.user_id }}&status=eq.active&order=created_at.desc"
-            },
-            "name": "Get Strategy",
-            "type": "n8n-nodes-base.supabase",
-            "typeVersion": 1,
-            "position": [1240, 300],
-            "alwaysOutputData": true,
-            "credentials": {
-                "supabaseApi": {
-                    "id": "CJ3Z1MvRt6BxblaB",
-                    "name": "Supabase - Running Coach"
-                }
-            }
-        },
-        {
-            "id": "build-summary-prompt",
-            "parameters": {
-                "functionCode": "const summary = $('Summarize Week').first().json;\nconst strategyRaw = items[0].json;\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\n// Build trainings detail for AI\nlet trainingsDetail = '';\nif (summary.training_details && summary.training_details.length > 0) {\n  trainingsDetail = '\\nДетали тренировок:\\n';\n  summary.training_details.forEach(t => {\n    trainingsDetail += '- ' + t.date + ': ' + (t.km || '?') + ' км';\n    if (t.duration) trainingsDetail += ', ' + Math.round(t.duration/60) + ' мин';\n    if (t.pace) trainingsDetail += ', темп ' + formatPace(t.pace) + '/км';\n    if (t.hr) trainingsDetail += ', пульс ' + t.hr;\n    if (t.type) trainingsDetail += ' (' + t.type + ')';\n    trainingsDetail += '\\n';\n  });\n}\n\n// Build strategy context\nlet strategyContext = '';\nlet currentPhase = null;\nlet weekTargetMin = null;\nlet weekTargetMax = null;\n\ntry {\n  if (strategyRaw && strategyRaw.phases) {\n    const phases = typeof strategyRaw.phases === 'string'\n      ? JSON.parse(strategyRaw.phases) : strategyRaw.phases;\n    const startDate = new Date(strategyRaw.start_date);\n    const now = new Date();\n    const weeksSince = Math.max(1, Math.ceil((now - startDate) / (7*24*60*60*1000)));\n\n    for (const p of phases) {\n      if (weeksSince >= p.start_week && weeksSince <= p.end_week) {\n        currentPhase = p;\n        break;\n      }\n    }\n\n    strategyContext = '\\nСТРАТЕГИЯ ПОДГОТОВКИ:';\n    strategyContext += '\\n- Цель: ' + (strategyRaw.race_distance || 'улучшение') + (strategyRaw.race_date ? ' (' + strategyRaw.race_date + ')' : '');\n    strategyContext += '\\n- Всего недель: ' + strategyRaw.total_weeks + ', текущая: ' + weeksSince;\n    if (currentPhase) {\n      strategyContext += '\\n- Текущая фаза: ' + currentPhase.display_name;\n      strategyContext += '\\n- Фокус: ' + currentPhase.focus;\n      strategyContext += '\\n- Целевой объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км/нед';\n      strategyContext += '\\n- Ключевые тренировки: ' + (currentPhase.key_workouts || []).join(', ');\n      weekTargetMin = currentPhase.target_weekly_km_min;\n      weekTargetMax = currentPhase.target_weekly_km_max;\n    }\n  }\n} catch(e) {}\n\n// Calculate next week dates\nconst now = new Date();\nconst nextMonday = new Date(now);\nnextMonday.setDate(now.getDate() + (8 - now.getDay()) % 7);\nif (nextMonday <= now) nextMonday.setDate(nextMonday.getDate() + 7);\nconst nextSunday = new Date(nextMonday);\nnextSunday.setDate(nextMonday.getDate() + 6);\n\nconst fmtDate = (d) => d.getDate() + '.' + (d.getMonth()+1).toString().padStart(2,'0');\nconst nextWeekStr = fmtDate(nextMonday) + '-' + fmtDate(nextSunday);\nconst nextMondayISO = nextMonday.toISOString().split('T')[0];\n\nconst systemPrompt = 'Ты AI-тренер по бегу. Пользователь: ' + summary.first_name + ', уровень: ' + summary.level + ', бегает ' + summary.weekly_runs + ' раз в неделю.'\n  + '\\n\\nИТОГИ ПРОШЕДШЕЙ НЕДЕЛИ:'\n  + '\\n- Тренировок: ' + summary.week_sessions + ' из ' + summary.weekly_runs\n  + '\\n- Дистанция: ' + summary.week_km + ' км' + (weekTargetMin ? ' (цель: ' + weekTargetMin + '-' + weekTargetMax + ' км)' : '')\n  + (summary.week_avg_pace ? '\\n- Средний темп: ' + formatPace(summary.week_avg_pace) + '/км' : '')\n  + (summary.week_avg_hr ? '\\n- Средний пульс: ' + summary.week_avg_hr + ' уд/мин' : '')\n  + trainingsDetail\n  + strategyContext\n  + '\\n\\nЗадача:'\n  + '\\n1. Кратко оцени прошедшую неделю (2-3 предложения, по-русски, дружелюбно)'\n  + '\\n2. Составь план на СЛЕДУЮЩУЮ неделю (' + nextWeekStr + ', ' + summary.weekly_runs + ' тренировок). Укажи день, тип, дистанцию, темп.'\n  + (currentPhase ? '\\n\\nВАЖНО: План должен соответствовать ТЕКУЩЕЙ ФАЗЕ: ' + currentPhase.display_name + '. Фокус: ' + currentPhase.focus + '.' : '')\n  + '\\n\\nОтветь строго JSON: {\"summary\": \"краткая оценка недели\", \"plan_text\": \"план на неделю с днями\", \"total_km\": число}';\n\nreturn [{json: {\n  system_prompt: systemPrompt,\n  user_message: 'Пришли итоги моей недели и план на следующую.',\n  user_id: summary.user_id,\n  telegram_id: summary.telegram_id,\n  first_name: summary.first_name,\n  week_sessions: summary.week_sessions,\n  weekly_runs: summary.weekly_runs,\n  week_km: summary.week_km,\n  week_avg_pace: summary.formatPaceStr,\n  week_avg_hr: summary.week_avg_hr,\n  week_target_min: weekTargetMin,\n  week_target_max: weekTargetMax,\n  next_monday: nextMondayISO,\n  next_sunday: nextSunday.toISOString().split('T')[0],\n  next_week_str: nextWeekStr\n}}];"
-            },
-            "name": "Build Summary Prompt",
-            "type": "n8n-nodes-base.function",
-            "typeVersion": 1,
-            "position": [1440, 300]
-        },
-        {
-            "id": "call-openai",
-            "parameters": {
-                "method": "POST",
-                "url": "https://api.openai.com/v1/chat/completions",
-                "authentication": "predefinedCredentialType",
-                "nodeCredentialType": "openAiApi",
-                "sendBody": true,
-                "specifyBody": "json",
-                "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": {{ JSON.stringify($json.system_prompt) }}},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.user_message) }}}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
-                "options": {}
-            },
-            "name": "Call OpenAI",
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.2,
-            "position": [1640, 300],
-            "credentials": {
-                "openAiApi": {
-                    "id": "koikxNcf4ds6vKgZ",
-                    "name": "OpenAI - Running Coach"
-                }
-            }
-        },
-        {
-            "id": "parse-response",
-            "parameters": {
-                "functionCode": "const promptData = $('Build Summary Prompt').first().json;\nconst aiResponse = items[0].json;\n\nlet parsed = {};\ntry {\n  const content = aiResponse.choices[0].message.content;\n  parsed = JSON.parse(content);\n} catch(e) {\n  parsed = { summary: 'Не удалось сформировать итоги.', plan_text: '', total_km: 0 };\n}\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s/60) + ':' + String(s % 60).padStart(2, '0');\n};\n\n// Build final message\nlet text = 'Итоги недели:\\n\\n';\ntext += 'Тренировок: ' + promptData.week_sessions + ' из ' + promptData.weekly_runs + '\\n';\ntext += 'Дистанция: ' + promptData.week_km + ' км';\nif (promptData.week_target_min) {\n  text += ' (цель: ' + promptData.week_target_min + '-' + promptData.week_target_max + ' км)';\n}\ntext += '\\n';\nif (promptData.week_avg_pace && promptData.week_avg_pace !== 'н/д') text += 'Средний темп: ' + promptData.week_avg_pace + '/км\\n';\nif (promptData.week_avg_hr) text += 'Средний пульс: ' + promptData.week_avg_hr + ' уд/мин\\n';\n\ntext += '\\n' + (parsed.summary || '') + '\\n';\n\nif (parsed.plan_text) {\n  text += '\\nПлан на следующую неделю (' + promptData.next_week_str + '):\\n\\n';\n  // Clean markdown from plan text\n  let planClean = parsed.plan_text\n    .replace(/\\*\\*(.+?)\\*\\*/g, '$1')\n    .replace(/\\*(.+?)\\*/g, '$1');\n  text += planClean;\n  if (parsed.total_km) {\n    text += '\\n\\nОбщий объём: ~' + parsed.total_km + ' км';\n  }\n}\n\nreturn [{json: {\n  user_id: promptData.user_id,\n  telegram_id: promptData.telegram_id,\n  response_text: text,\n  plan_text: parsed.plan_text || '',\n  total_km: parsed.total_km || 0,\n  next_monday: promptData.next_monday,\n  next_sunday: promptData.next_sunday\n}}];"
-            },
-            "name": "Parse Response",
-            "type": "n8n-nodes-base.function",
-            "typeVersion": 1,
-            "position": [1840, 300]
-        },
-        {
-            "id": "deactivate-old-plan",
-            "parameters": {
-                "operation": "update",
-                "tableId": "weekly_plans",
-                "filterType": "manual",
-                "matchType": "allFilters",
-                "filters": {
-                    "conditions": [
-                        {
-                            "keyName": "user_id",
-                            "condition": "eq",
-                            "keyValue": "={{ $json.user_id }}"
-                        },
-                        {
-                            "keyName": "status",
-                            "condition": "eq",
-                            "keyValue": "active"
-                        }
-                    ]
-                },
-                "dataToSend": "defineBelow",
-                "fieldsUi": {
-                    "fieldValues": [
-                        {
-                            "fieldId": "status",
-                            "fieldValue": "completed"
-                        }
-                    ]
-                }
-            },
-            "name": "Deactivate Old Plan",
-            "type": "n8n-nodes-base.supabase",
-            "typeVersion": 1,
-            "position": [2040, 300],
-            "onError": "continueRegularOutput",
-            "credentials": {
-                "supabaseApi": {
-                    "id": "CJ3Z1MvRt6BxblaB",
-                    "name": "Supabase - Running Coach"
-                }
-            }
-        },
-        {
-            "id": "save-new-plan",
-            "parameters": {
-                "operation": "create",
-                "tableId": "weekly_plans",
-                "dataToSend": "defineBelow",
-                "fieldsUi": {
-                    "fieldValues": [
-                        {
-                            "fieldId": "user_id",
-                            "fieldValue": "={{ $('Parse Response').first().json.user_id }}"
-                        },
-                        {
-                            "fieldId": "week_start",
-                            "fieldValue": "={{ $('Parse Response').first().json.next_monday }}"
-                        },
-                        {
-                            "fieldId": "week_end",
-                            "fieldValue": "={{ $('Parse Response').first().json.next_sunday }}"
-                        },
-                        {
-                            "fieldId": "plan_data",
-                            "fieldValue": "={{ JSON.stringify({raw_plan: $('Parse Response').first().json.plan_text}) }}"
-                        },
-                        {
-                            "fieldId": "total_distance_km",
-                            "fieldValue": "={{ $('Parse Response').first().json.total_km }}"
-                        },
-                        {
-                            "fieldId": "status",
-                            "fieldValue": "active"
-                        }
-                    ]
-                }
-            },
-            "name": "Save New Plan",
-            "type": "n8n-nodes-base.supabase",
-            "typeVersion": 1,
-            "position": [2240, 300],
-            "onError": "continueRegularOutput",
-            "credentials": {
-                "supabaseApi": {
-                    "id": "CJ3Z1MvRt6BxblaB",
-                    "name": "Supabase - Running Coach"
-                }
-            }
-        },
-        {
-            "id": "send-summary",
-            "parameters": {
-                "operation": "sendMessage",
-                "chatId": "={{ $('Parse Response').first().json.telegram_id.toString() }}",
-                "text": "={{ $('Parse Response').first().json.response_text }}",
-                "additionalFields": {
-                    "appendAttribution": false
-                }
-            },
-            "name": "Send Summary",
-            "type": "n8n-nodes-base.telegram",
-            "typeVersion": 1.2,
-            "position": [2440, 300],
-            "credentials": {
-                "telegramApi": {
-                    "id": "SLNhx6dJUSPFBV35",
-                    "name": "Telegram Bot - Running Coach"
-                }
-            }
+          ]
         }
-    ],
-    "connections": {
-        "Schedule Trigger": {
-            "main": [[{"node": "Get Active Users", "type": "main", "index": 0}]]
-        },
-        "Get Active Users": {
-            "main": [[{"node": "SplitInBatches", "type": "main", "index": 0}]]
-        },
-        "SplitInBatches": {
-            "main": [
-                [{"node": "Get Week Trainings", "type": "main", "index": 0}],
-                []
-            ]
-        },
-        "Get Week Trainings": {
-            "main": [[{"node": "Summarize Week", "type": "main", "index": 0}]]
-        },
-        "Summarize Week": {
-            "main": [[{"node": "Get Strategy", "type": "main", "index": 0}]]
-        },
-        "Get Strategy": {
-            "main": [[{"node": "Build Summary Prompt", "type": "main", "index": 0}]]
-        },
-        "Build Summary Prompt": {
-            "main": [[{"node": "Call OpenAI", "type": "main", "index": 0}]]
-        },
-        "Call OpenAI": {
-            "main": [[{"node": "Parse Response", "type": "main", "index": 0}]]
-        },
-        "Parse Response": {
-            "main": [[{"node": "Deactivate Old Plan", "type": "main", "index": 0}]]
-        },
-        "Deactivate Old Plan": {
-            "main": [[{"node": "Save New Plan", "type": "main", "index": 0}]]
-        },
-        "Save New Plan": {
-            "main": [[{"node": "Send Summary", "type": "main", "index": 0}]]
-        },
-        "Send Summary": {
-            "main": [[{"node": "SplitInBatches", "type": "main", "index": 0}]]
-        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
     },
-    "settings": {
-        "executionOrder": "v1"
+    {
+      "id": "get-active-users",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users",
+        "returnAll": true,
+        "filterType": "string",
+        "RLCfilterString": "=onboarding_stage=eq.completed&is_active=eq.true"
+      },
+      "name": "Get Active Users",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "split-in-batches",
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "name": "SplitInBatches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "id": "get-week-trainings",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "trainings",
+        "returnAll": true,
+        "filterType": "string",
+        "RLCfilterString": "=user_id=eq.{{ $('SplitInBatches').first().json.id }}&date=gte.{{ $now.minus({days: $now.weekday - 1}).toFormat('yyyy-MM-dd') }}&order=date.desc"
+      },
+      "name": "Get Week Trainings",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        840,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "summarize-week",
+      "parameters": {
+        "functionCode": "const user = $('SplitInBatches').first().json;\nconst trainings = items.filter(t => t.json && t.json.id);\n\nlet totalKm = 0, totalDuration = 0, totalHr = 0, hrCount = 0;\nconst types = [];\nconst details = [];\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');\n};\n\ntrainings.forEach(t => {\n  const j = t.json || {};\n  totalKm += parseFloat(j.distance_km) || 0;\n  totalDuration += parseInt(j.duration_seconds) || 0;\n  if (j.avg_heart_rate) { totalHr += parseInt(j.avg_heart_rate); hrCount++; }\n  if (j.type) types.push(j.type);\n  details.push({\n    date: j.date,\n    km: j.distance_km,\n    duration: j.duration_seconds,\n    pace: j.avg_pace_seconds,\n    hr: j.avg_heart_rate,\n    type: j.type\n  });\n});\n\nconst avgPace = totalKm > 0 ? Math.round(totalDuration / totalKm) : 0;\nconst avgHr = hrCount > 0 ? Math.round(totalHr / hrCount) : null;\n\nreturn [{json: {\n  user_id: user.id,\n  telegram_id: user.telegram_id,\n  first_name: user.first_name || 'Друг',\n  weekly_runs: user.weekly_runs || 3,\n  level: user.level || 'intermediate',\n  current_5k_pace_seconds: user.current_5k_pace_seconds,\n  race_distance: user.race_distance,\n  race_date: user.race_date,\n  preferred_training_days: user.preferred_training_days || null,\n  resting_hr: user.resting_hr || null,\n  max_hr: user.max_hr || null,\n  has_lab_testing: user.has_lab_testing || false,\n  vo2max: user.vo2max || null,\n  lthr: user.lthr || null,\n  week_sessions: trainings.length,\n  week_km: Math.round(totalKm * 10) / 10,\n  week_duration: totalDuration,\n  week_avg_pace: avgPace,\n  week_avg_hr: avgHr,\n  training_types: types,\n  training_details: details,\n  formatPaceStr: formatPace(avgPace)\n}}];\n"
+      },
+      "name": "Summarize Week",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        300
+      ]
+    },
+    {
+      "id": "get-strategy",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "training_strategies",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "string",
+        "RLCfilterString": "=user_id=eq.{{ $json.user_id }}&status=eq.active&order=created_at.desc"
+      },
+      "name": "Get Strategy",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        300
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "build-summary-prompt",
+      "parameters": {
+        "functionCode": "const summary = $('Summarize Week').first().json;\nconst strategyRaw = items[0].json;\n\nconst formatPace = (s) => {\n  if (!s) return 'н/д';\n  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');\n};\n\nconst toISO = (d) => {\n  const y = d.getFullYear();\n  const m = String(d.getMonth() + 1).padStart(2, '0');\n  const day = String(d.getDate()).padStart(2, '0');\n  return y + '-' + m + '-' + day;\n};\nconst daysRu = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];\n\nlet trainingsDetail = '';\nif (summary.training_details && summary.training_details.length > 0) {\n  trainingsDetail = '\\nДетали тренировок:\\n';\n  summary.training_details.forEach(t => {\n    trainingsDetail += '- ' + t.date + ': ' + (t.km || '?') + ' км';\n    if (t.duration) trainingsDetail += ', ' + Math.round(t.duration / 60) + ' мин';\n    if (t.pace) trainingsDetail += ', темп ' + formatPace(t.pace) + '/км';\n    if (t.hr) trainingsDetail += ', пульс ' + t.hr;\n    if (t.type) trainingsDetail += ' (' + t.type + ')';\n    trainingsDetail += '\\n';\n  });\n}\n\nlet strategyContext = '';\nlet currentPhase = null;\nlet weekTargetMin = null;\nlet weekTargetMax = null;\n\ntry {\n  if (strategyRaw && strategyRaw.phases) {\n    const phases = typeof strategyRaw.phases === 'string' ? JSON.parse(strategyRaw.phases) : strategyRaw.phases;\n    const startDate = new Date(strategyRaw.start_date);\n    const now = new Date();\n    const weeksSince = Math.max(1, Math.ceil((now - startDate) / (7 * 24 * 60 * 60 * 1000)));\n\n    for (const p of phases) {\n      if (weeksSince >= p.start_week && weeksSince <= p.end_week) {\n        currentPhase = p;\n        break;\n      }\n    }\n\n    strategyContext = '\\nСТРАТЕГИЯ ПОДГОТОВКИ:';\n    strategyContext += '\\n- Цель: ' + (strategyRaw.race_distance || 'улучшение') + (strategyRaw.race_date ? ' (' + strategyRaw.race_date + ')' : '');\n    strategyContext += '\\n- Всего недель: ' + strategyRaw.total_weeks + ', текущая: ' + weeksSince;\n    if (currentPhase) {\n      strategyContext += '\\n- Текущая фаза: ' + currentPhase.display_name;\n      strategyContext += '\\n- Фокус: ' + currentPhase.focus;\n      strategyContext += '\\n- Целевой объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км/нед';\n      strategyContext += '\\n- Ключевые тренировки: ' + (currentPhase.key_workouts || []).join(', ');\n      weekTargetMin = currentPhase.target_weekly_km_min;\n      weekTargetMax = currentPhase.target_weekly_km_max;\n    }\n  }\n} catch (e) {}\n\nconst now = new Date();\nconst nextMonday = new Date(now);\nnextMonday.setDate(now.getDate() + ((8 - now.getDay()) % 7 || 7));\nconst nextSunday = new Date(nextMonday);\nnextSunday.setDate(nextMonday.getDate() + 6);\n\nconst nextWeekDates = [];\nfor (let i = 0; i < 7; i++) {\n  const d = new Date(nextMonday.getTime() + i * 86400000);\n  nextWeekDates.push({\n    date: toISO(d),\n    day_ru: daysRu[d.getDay()]\n  });\n}\n\nconst volumeCompliance = weekTargetMin && weekTargetMax\n  ? (summary.week_km < weekTargetMin ? 'below' : (summary.week_km > weekTargetMax ? 'above' : 'within'))\n  : 'unknown';\n\nconst systemPrompt = 'Ты AI-тренер по бегу. Нужно сделать ИТОГ НЕДЕЛИ и АДАПТИРОВАТЬ ПЛАН на следующую неделю на основе фактических данных.'\n  + '\\n\\nПРОФИЛЬ:'\n  + '\\n- Имя: ' + summary.first_name\n  + '\\n- Уровень: ' + summary.level\n  + '\\n- Тренировок/нед: ' + summary.weekly_runs\n  + '\\n- Предпочтительные дни: ' + (summary.preferred_training_days || 'не указаны')\n  + '\\n- Пульс покоя: ' + (summary.resting_hr || 'н/д')\n  + '\\n- MaxHR: ' + (summary.max_hr || 'н/д')\n  + '\\n- VO2max: ' + (summary.vo2max || 'н/д')\n  + '\\n- LTHR: ' + (summary.lthr || 'н/д')\n  + '\\n- Есть лаб. тесты: ' + (summary.has_lab_testing ? 'да' : 'нет')\n  + '\\n\\nФАКТ ПРОШЕДШЕЙ НЕДЕЛИ:'\n  + '\\n- Тренировок: ' + summary.week_sessions + ' из ' + summary.weekly_runs\n  + '\\n- Объём: ' + summary.week_km + ' км' + (weekTargetMin ? ' (цель: ' + weekTargetMin + '-' + weekTargetMax + ' км, статус: ' + volumeCompliance + ')' : '')\n  + (summary.week_avg_pace ? '\\n- Средний темп: ' + formatPace(summary.week_avg_pace) + '/км' : '')\n  + (summary.week_avg_hr ? '\\n- Средний пульс: ' + summary.week_avg_hr + ' уд/мин' : '')\n  + trainingsDetail\n  + strategyContext\n  + '\\n\\nЗАДАЧА (железно):'\n  + '\\n1. Оцени соответствие неделе (выполнение плана, пульс, темп, объём).'\n  + '\\n2. Адаптируй следующую неделю от ФАКТА:'\n  + '\\n- если нагрузка была заметно ниже плана (объём/пульс/темп), аккуратно увеличь нагрузку на 5-12%'\n  + '\\n- если нагрузка была выше/признаки перегруза, снизь на 5-15%'\n  + '\\n- если всё в норме, держи стратегический курс'\n  + '\\n3. План на следующую неделю должен соответствовать текущей фазе стратегии и включать ровно ' + summary.weekly_runs + ' тренировок.'\n  + '\\n4. ОБЪЁМ тренировок указывать ТОЛЬКО в километрах. Никаких минут как основной единицы объёма.'\n  + '\\n5. Для каждой тренировки обязательно: дата (YYYY-MM-DD), день недели, тип (по-русски), distance_km, целевой темп (мин/км), скорость (км/ч), целевой пульс, RPE.'\n  + '\\n6. Используй только даты из списка РАЗРЕШЕННЫХ ДАТ следующей недели.'\n  + '\\n\\nРАЗРЕШЕННЫЕ ДАТЫ: ' + nextWeekDates.map(x => x.day_ru + ' ' + x.date).join('; ')\n  + '\\n\\nОтветь СТРОГО JSON:'\n  + '\\n{'\n  + '\\n  \"summary\": \"краткая оценка недели\",'\n  + '\\n  \"adaptation\": {'\n  + '\\n    \"compliance\": \"below|within|above\",'\n  + '\\n    \"adjustment_percent\": number,'\n  + '\\n    \"reason\": \"почему так\"'\n  + '\\n  },'\n  + '\\n  \"workouts\": ['\n  + '\\n    {'\n  + '\\n      \"date\": \"YYYY-MM-DD\",'\n  + '\\n      \"day_ru\": \"понедельник\",'\n  + '\\n      \"type_ru\": \"Лёгкий бег\",'\n  + '\\n      \"description\": \"...\",'\n  + '\\n      \"distance_km\": number,'\n  + '\\n      \"target_pace_min_km\": \"M:SS\",'\n  + '\\n      \"treadmill_kmh\": number,'\n  + '\\n      \"target_hr\": \"...\",'\n  + '\\n      \"rpe\": number'\n  + '\\n    }'\n  + '\\n  ],'\n  + '\\n  \"total_km\": number'\n  + '\\n}';\n\nreturn [{json: {\n  system_prompt: systemPrompt,\n  user_message: 'Пришли итоги моей недели и адаптированный план на следующую.',\n  user_id: summary.user_id,\n  telegram_id: summary.telegram_id,\n  first_name: summary.first_name,\n  week_sessions: summary.week_sessions,\n  weekly_runs: summary.weekly_runs,\n  week_km: summary.week_km,\n  week_avg_pace: summary.formatPaceStr,\n  week_avg_hr: summary.week_avg_hr,\n  week_target_min: weekTargetMin,\n  week_target_max: weekTargetMax,\n  next_monday: toISO(nextMonday),\n  next_sunday: toISO(nextSunday),\n  next_week_str: toISO(nextMonday) + ' - ' + toISO(nextSunday)\n}}];\n"
+      },
+      "name": "Build Summary Prompt",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "id": "call-openai",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": {{ JSON.stringify($json.system_prompt) }}},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.user_message) }}}\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 1500,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {}
+      },
+      "name": "Call OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "koikxNcf4ds6vKgZ",
+          "name": "OpenAI - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "parse-response",
+      "parameters": {
+        "functionCode": "const promptData = $('Build Summary Prompt').first().json;\nconst aiResponse = items[0].json;\n\nlet parsed = {};\ntry {\n  const content = aiResponse.choices[0].message.content;\n  parsed = JSON.parse(content);\n} catch (e) {\n  parsed = { summary: 'Не удалось сформировать итоги.', workouts: [], total_km: 0, adaptation: {} };\n}\n\nconst workouts = Array.isArray(parsed.workouts) ? parsed.workouts : [];\n\nconst clean = (s) => String(s || '').replace(/\\*\\*(.+?)\\*\\*/g, '$1').replace(/\\*(.+?)\\*/g, '$1').trim();\n\nconst formatWorkout = (w, idx) => {\n  const lines = [];\n  lines.push((idx + 1) + '. ' + (w.day_ru || 'день') + ' (' + (w.date || 'дата') + ')');\n  lines.push('- Тип: ' + clean(w.type_ru || 'Тренировка'));\n  lines.push('- Описание: ' + clean(w.description || ''));\n  lines.push('- Дистанция: ' + (w.distance_km ?? '?') + ' км');\n  if (w.target_pace_min_km) {\n    let paceLine = '- Целевой темп: ' + w.target_pace_min_km + '/км';\n    if (w.treadmill_kmh !== undefined && w.treadmill_kmh !== null) paceLine += ' (' + w.treadmill_kmh + ' км/ч)';\n    lines.push(paceLine);\n  }\n  if (w.target_hr) lines.push('- Целевой пульс: ' + clean(w.target_hr));\n  if (w.rpe !== undefined && w.rpe !== null) lines.push('- RPE: ' + w.rpe);\n  return lines.join('\\n');\n};\n\nlet planText = '';\nif (workouts.length > 0) {\n  planText = workouts.map(formatWorkout).join('\\n\\n');\n} else if (parsed.plan_text) {\n  planText = clean(parsed.plan_text);\n}\n\nlet text = 'Итоги недели:\\n\\n';\ntext += 'Тренировок: ' + promptData.week_sessions + ' из ' + promptData.weekly_runs + '\\n';\ntext += 'Дистанция: ' + promptData.week_km + ' км';\nif (promptData.week_target_min) text += ' (цель: ' + promptData.week_target_min + '-' + promptData.week_target_max + ' км)';\ntext += '\\n';\nif (promptData.week_avg_pace && promptData.week_avg_pace !== 'н/д') text += 'Средний темп: ' + promptData.week_avg_pace + '/км\\n';\nif (promptData.week_avg_hr) text += 'Средний пульс: ' + promptData.week_avg_hr + ' уд/мин\\n';\n\nif (parsed.adaptation && typeof parsed.adaptation === 'object') {\n  const adj = parsed.adaptation;\n  if (adj.compliance || adj.adjustment_percent !== undefined || adj.reason) {\n    text += '\\nАдаптация следующей недели:\\n';\n    if (adj.compliance) text += '- Статус недели: ' + adj.compliance + '\\n';\n    if (adj.adjustment_percent !== undefined) text += '- Коррекция нагрузки: ' + adj.adjustment_percent + '%\\n';\n    if (adj.reason) text += '- Причина: ' + clean(adj.reason) + '\\n';\n  }\n}\n\ntext += '\\n' + clean(parsed.summary || '') + '\\n';\n\nif (planText) {\n  text += '\\nПлан на следующую неделю (' + promptData.next_week_str + '):\\n\\n';\n  text += planText;\n  if (parsed.total_km) text += '\\n\\nОбщий объём: ~' + parsed.total_km + ' км';\n}\n\nreturn [{json: {\n  user_id: promptData.user_id,\n  telegram_id: promptData.telegram_id,\n  response_text: text,\n  plan_text: planText,\n  total_km: parsed.total_km || 0,\n  next_monday: promptData.next_monday,\n  next_sunday: promptData.next_sunday\n}}];\n"
+      },
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        300
+      ]
+    },
+    {
+      "id": "deactivate-old-plan",
+      "parameters": {
+        "operation": "update",
+        "tableId": "weekly_plans",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            }
+          ]
+        }
+      },
+      "name": "Deactivate Old Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2040,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "save-new-plan",
+      "parameters": {
+        "operation": "create",
+        "tableId": "weekly_plans",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Parse Response').first().json.user_id }}"
+            },
+            {
+              "fieldId": "week_start",
+              "fieldValue": "={{ $('Parse Response').first().json.next_monday }}"
+            },
+            {
+              "fieldId": "week_end",
+              "fieldValue": "={{ $(\"Parse Response\").first().json.next_sunday }}"
+            },
+            {
+              "fieldId": "plan_data",
+              "fieldValue": "={{ JSON.stringify({raw_plan: $('Parse Response').first().json.plan_text}) }}"
+            },
+            {
+              "fieldId": "total_distance_km",
+              "fieldValue": "={{ $('Parse Response').first().json.total_km }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "active"
+            }
+          ]
+        }
+      },
+      "name": "Save New Plan",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "CJ3Z1MvRt6BxblaB",
+          "name": "Supabase - Running Coach"
+        }
+      }
+    },
+    {
+      "id": "send-summary",
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $('Parse Response').first().json.telegram_id.toString() }}",
+        "text": "={{ $('Parse Response').first().json.response_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Send Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2440,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SLNhx6dJUSPFBV35",
+          "name": "Telegram Bot - Running Coach"
+        }
+      }
     }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Active Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Users": {
+      "main": [
+        [
+          {
+            "node": "SplitInBatches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SplitInBatches": {
+      "main": [
+        [
+          {
+            "node": "Get Week Trainings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get Week Trainings": {
+      "main": [
+        [
+          {
+            "node": "Summarize Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Week": {
+      "main": [
+        [
+          {
+            "node": "Get Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Strategy": {
+      "main": [
+        [
+          {
+            "node": "Build Summary Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Deactivate Old Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deactivate Old Plan": {
+      "main": [
+        [
+          {
+            "node": "Save New Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save New Plan": {
+      "main": [
+        [
+          {
+            "node": "Send Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Summary": {
+      "main": [
+        [
+          {
+            "node": "SplitInBatches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
 }

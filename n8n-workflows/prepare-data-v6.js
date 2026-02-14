@@ -12,6 +12,8 @@ let systemPrompt = '';
 let nextStage = stage;
 let isPlanGeneration = false;
 let hardcodedResponse = null;
+let planWeekStart = null;
+let planWeekEnd = null;
 
 // ============================================================
 // GLOBAL CONSTANTS
@@ -399,6 +401,8 @@ if (mafHR) hrContext += '\nMAF пульс (аэробный потолок): ' +
 if (data.resting_hr) hrContext += '\nПульс покоя: ' + data.resting_hr + ' уд/мин';
 if (data.lthr) hrContext += '\nЛактатный порог (LTHR): ' + data.lthr + ' уд/мин';
 if (data.vo2max) hrContext += '\nVO2max: ' + data.vo2max + ' мл/кг/мин';
+if (data.has_lab_testing === true) hrContext += '\nЛабораторные тесты: есть';
+if (data.has_lab_testing === false) hrContext += '\nЛабораторные тесты: нет';
 if (hrContext) hrContext = '\n\nПУЛЬСОВЫЕ ДАННЫЕ:' + hrContext + '\n';
 
 // ============================================================
@@ -449,16 +453,15 @@ if (stage !== 'completed') {
     // Strategy generation — full GPT response, no hardcoded text
     hardcodedResponse = null;
 
-    const profileInfo = 'Данные пользователя: '
+    const profileInfo = 'Данные пользователя (из профиля): '
       + (data.level ? 'уровень=' + data.level + ', ' : '')
       + (data.age ? 'возраст=' + data.age + ', ' : '')
       + (data.height_cm ? 'рост=' + data.height_cm + 'см, ' : '')
       + (data.weight_kg ? 'вес=' + data.weight_kg + 'кг, ' : '')
       + (data.current_5k_pace_seconds ? 'темп 5К=' + formatPace(data.current_5k_pace_seconds) + '/км, ' : '')
       + (data.weekly_runs ? 'тренировок/нед=' + data.weekly_runs + ', ' : '')
-      + (data.race_distance ? 'дистанция=' + data.race_distance + (data.race_distance_km ? ' (' + data.race_distance_km + ' км)' : '') + ', ' : '')
-      + (data.race_date ? 'дата=' + data.race_date + ', ' : '')
-      + (data.target_time_seconds ? 'цель=' + formatPace(Math.floor(data.target_time_seconds / (data.race_distance_km || 21.1))) + '/км (' + Math.floor(data.target_time_seconds / 60) + ' мин), ' : '');
+      + (data.preferred_training_days ? 'предпочтительные дни=' + data.preferred_training_days + ', ' : '')
+      + '\nДанные о забеге пользователь указал В СООБЩЕНИИ НИЖЕ — извлеки дистанцию, дату и целевое время оттуда!';
 
     // Include CORE_RULES and LEVEL_PARAMS in strategy generation
     const knowledgeForStrategy = buildKnowledgeContext(data.level, data.goal || 'race', data.current_5k_pace_seconds);
@@ -492,7 +495,11 @@ if (stage !== 'completed') {
       + 'В самом конце напиши: Начинаем? Если стратегия подходит, скажи и я составлю план на первую неделю!\n\n'
       + 'НЕ используй символы форматирования. Используй простые тире для списков.\n\n'
       + JSON_FORMAT + '\n'
-      + 'extracted: { race_distance: "' + (data.race_distance || 'half') + '", race_distance_km: ' + (data.race_distance_km || 21.1) + ', race_date: "' + (data.race_date || new Date(Date.now() + 16 * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) + '", target_time_seconds: ' + (data.target_time_seconds || 6300) + ', strategy_generated: true, total_weeks: число, strategy_summary: "краткое описание", phases: [{name, display_name, start_week, end_week, duration_weeks, focus, target_weekly_km_min, target_weekly_km_max, key_workouts: ["тренировка1", "тренировка2"], intensity_distribution: "80/20 или подобное"}] }';
+      + 'ВАЖНО: Извлеки данные о забеге ИЗ СООБЩЕНИЯ ПОЛЬЗОВАТЕЛЯ ниже! НЕ используй значения по умолчанию.\n'
+      + 'Для дистанции: "5k"=5, "10k"=10, "полумарафон"/"half"=21.1, "марафон"=42.2, иначе число в км.\n'
+      + 'Для даты: конвертируй в формат YYYY-MM-DD. Текущий год: ' + today.getFullYear() + '.\n'
+      + 'Для целевого времени: конвертируй в секунды (3:15 = 11700 сек, 2:00 = 7200 сек).\n\n'
+      + 'extracted: { race_distance: "строка из сообщения (5k/10k/half/marathon/30k/etc)", race_distance_km: число_км, race_date: "YYYY-MM-DD", target_time_seconds: число_секунд, strategy_generated: true, total_weeks: число, strategy_summary: "краткое описание", phases: [{name, display_name, start_week, end_week, duration_weeks, focus, target_weekly_km_min, target_weekly_km_max, key_workouts: ["тренировка1", "тренировка2"], intensity_distribution: "80/20 или подобное"}] }';
 
   } else {
     // All other onboarding stages: GPT is for PARSING only, question is hardcoded
@@ -527,14 +534,74 @@ if (stage !== 'completed') {
 
   // Strategy question detection
   const isStrategyQuestion = /стратег|фаз[аыуеи]|период|этап подготовки|план подготовки|как.*иду|долгосроч|подготов.*забег/i.test(message);
+  const isConvertPlanToMinutes = /перевед|пересч|конверт|в минут|время вместо км/i.test(message) && /план|км|килом/i.test(message);
 
   // Negative patterns: user wants to log/update data, NOT generate a plan
   const isDataUpdate = /запиши|обнови|добавь|учти|измени|поправь/i.test(message);
 
-  // Plan generation detection (narrowed regex, no "тренировк" and "недел")
-  const isPlanRequest = /план|состав|давай|начн|готов/i.test(message);
+  // Plan generation detection (includes week choice responses)
+  const isPlanRequest = /план|состав|давай|нач(?:н|ин)|готов|^эт[уаоой]|следующ|^с понедельник/i.test(message.trim());
 
-  if (isStrategyQuestion && data.active_strategy) {
+  // Week choice detection for incomplete week handling
+  const choosesThisWeek = /эт[уаоой]|сейчас|текущ|прямо|^да$/i.test(message.trim());
+  const choosesNextWeek = /следующ|с понедельник|полн.*недел|новой|подожд/i.test(message);
+  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const isMidWeek = dayOfWeek !== 1; // Not Monday
+  const dayNamesRu = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+  const todayNameRu = dayNamesRu[dayOfWeek];
+
+  // Parse preferred days from free text to explicit weekday indexes.
+  const parsePreferredDayIndexes = (text) => {
+    if (!text) return [];
+    const t = text.toLowerCase();
+    const out = new Set();
+    const add = (idx, patterns) => {
+      if (patterns.some((p) => p.test(t))) out.add(idx);
+    };
+    add(1, [/\bпн\b/, /понед/]);
+    add(2, [/\bвт\b/, /вторн/]);
+    add(3, [/\bср\b/, /сред/]);
+    add(4, [/\bчт\b/, /четв/]);
+    add(5, [/\bпт\b/, /пятн/]);
+    add(6, [/\bсб\b/, /субб/]);
+    add(0, [/\bвс\b/, /воскр/]);
+    if (/выход|weekend/.test(t)) {
+      out.add(6);
+      out.add(0);
+    }
+    return Array.from(out);
+  };
+  const localDateISO = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  };
+  const dateLabelRu = (d) => dayNamesRu[d.getDay()] + ' ' + localDateISO(d);
+
+  if (isConvertPlanToMinutes && data.active_plan && data.active_plan.plan_data) {
+    // ---- PLAN VIEW CONVERSION (km -> minutes) ----
+    // Do not rebuild training content, only convert presentation units.
+    let activePlanText = '';
+    try {
+      const pd = typeof data.active_plan.plan_data === 'string' ? JSON.parse(data.active_plan.plan_data) : data.active_plan.plan_data;
+      activePlanText = pd.raw_plan || '';
+    } catch (e) {}
+
+    systemPrompt = 'Ты AI-тренер по бегу для ' + firstName + '. НЕ здоровайся.'
+      + '\nЗадача: пользователь просит ПЕРЕВЕСТИ текущий план из километров в минуты.'
+      + '\n\nВАЖНО:'
+      + '\n1. НЕ меняй структуру плана, дни, типы тренировок, интенсивность и порядок.'
+      + '\n2. НЕ создавай новый план, только конвертация представления.'
+      + '\n3. Для каждого блока с дистанцией в км рассчитай эквивалент в минутах по плановому темпу этого блока.'
+      + '\n4. Если темп в блоке не указан, оставь исходный блок без пересчета и явно подпиши \"темп не указан\".'
+      + '\n5. Сохрани все целевые пульсовые зоны, RPE и пояснения.'
+      + '\n6. Ответ только на русском, формат списком по дням.'
+      + '\n\nТекущий план:\n' + activePlanText
+      + '\n\nСообщение пользователя: "' + message + '"'
+      + '\n\n' + JSON_FORMAT + ' extracted: {}';
+
+  } else if (isStrategyQuestion && data.active_strategy) {
     // ---- STRATEGY QUESTION ----
     const knowledgeCtx = buildKnowledgeContext(userLevel, userGoal, pace5k);
 
@@ -545,6 +612,91 @@ if (stage !== 'completed') {
       + '\n\nПользователь спрашивает о стратегии: "' + message + '"'
       + '\n\nОтветь подробно о текущей фазе (неделя ' + weeksSinceStart + ' из ' + (data.active_strategy.total_weeks || '?') + '), прогрессе и что впереди.'
       + '\n\n' + JSON_FORMAT;
+
+  } else if (isPlanRequest && !isDataUpdate && isMidWeek && !choosesThisWeek && !choosesNextWeek) {
+    // ---- MID-WEEK: ASK WHICH WEEK ----
+    // User asked for a plan but it's not Monday — ask if they want this or next week
+    isPlanGeneration = false;
+
+    const remainingDays = [];
+    for (let d = dayOfWeek; d <= 6; d++) remainingDays.push(dayNamesRu[d]);
+    remainingDays.push(dayNamesRu[0]); // add Sunday
+
+    // Count how many preferred days remain this week
+    let prefDaysInfo = '';
+    if (data.preferred_training_days) {
+      prefDaysInfo = '\nПредпочтительные дни: ' + data.preferred_training_days;
+    }
+
+    systemPrompt = 'Ты AI-тренер по бегу для ' + firstName + '. НЕ здоровайся.' + dateContext
+      + '\n\nСегодня ' + todayNameRu + '. Неделя уже началась.'
+      + '\nОставшиеся дни до конца недели: ' + remainingDays.join(', ') + '.'
+      + prefDaysInfo
+      + '\nТренировок в неделю: ' + (data.weekly_runs || 3)
+      + '\n\nСпроси пользователя КОРОТКО (2-3 предложения):'
+      + '\n- Хочет начать тренировки с оставшихся дней этой неполной недели?'
+      + '\n- Или подождать и начать с полной недели (с понедельника)?'
+      + '\nОбъясни, что на этой неделе тренировок будет меньше из-за пропущенных дней.'
+      + '\n\n' + JSON_FORMAT + ' extracted: {}';
+
+  } else if (isPlanRequest && !isDataUpdate && isMidWeek && choosesThisWeek) {
+    // ---- THIS WEEK (MID-WEEK): deterministic mini-plan on remaining days ----
+    isPlanGeneration = true;
+
+    const remainingDates = [];
+    const daysUntilSunday = (7 - dayOfWeek) % 7;
+    for (let offset = 0; offset <= daysUntilSunday; offset++) {
+      const d = new Date(today.getTime() + offset * 86400000);
+      remainingDates.push({
+        idx: d.getDay(),
+        name: dayNamesRu[d.getDay()],
+        iso: localDateISO(d)
+      });
+    }
+
+    const preferredDayIndexes = parsePreferredDayIndexes(data.preferred_training_days);
+    let allowedDates = preferredDayIndexes.length > 0
+      ? remainingDates.filter((d) => preferredDayIndexes.includes(d.idx))
+      : remainingDates;
+    if (allowedDates.length === 0) allowedDates = remainingDates;
+
+    const weeklyRuns = data.weekly_runs || 3;
+    const planSessions = Math.max(1, Math.min(weeklyRuns, allowedDates.length));
+    const selected = allowedDates.slice(0, planSessions);
+
+    const level = data.level || 'intermediate';
+    const easyDistance = level === 'beginner' ? 5 : (level === 'advanced' ? 8 : 6);
+    const longDistance = level === 'beginner' ? 8 : (level === 'advanced' ? 16 : 12);
+    const basePace = data.current_5k_pace_seconds || (level === 'beginner' ? 420 : (level === 'advanced' ? 300 : 360));
+    const easyPace = Math.round(basePace + 75);
+    const longPace = Math.round(basePace + 90);
+
+    let longRunIndex = selected.length - 1;
+    const sundayIndex = selected.findIndex((d) => d.idx === 0);
+    if (selected.length > 1 && sundayIndex >= 0) longRunIndex = sundayIndex;
+
+    planWeekStart = localDateISO(today);
+    planWeekEnd = localDateISO(new Date(today.getTime() + daysUntilSunday * 86400000));
+
+    let text = 'План на оставшиеся дни этой недели (' + localDateISO(today) + ' - ' + localDateISO(new Date(today.getTime() + daysUntilSunday * 86400000)) + '):\n';
+    text += '\nПредпочтительные дни: ' + (data.preferred_training_days || 'не указаны');
+    text += '\nЗапланировано тренировок: ' + selected.length + ' (из обычных ' + weeklyRuns + ')\n';
+
+    selected.forEach((d, idx) => {
+      const isLong = selected.length > 1 && idx === longRunIndex;
+      const dist = isLong ? longDistance : easyDistance;
+      const pace = isLong ? longPace : easyPace;
+      const workoutName = isLong ? 'Длинная пробежка' : 'Лёгкий бег';
+      text += '\n\n' + (idx + 1) + '. ' + d.name + ' (' + d.iso + ')';
+      text += '\n- Тип: ' + workoutName;
+      text += '\n- Дистанция: ' + dist + ' км';
+      text += '\n- Целевой темп: ' + formatPace(pace) + '/км (' + paceToSpeed(pace) + ' км/ч)';
+      text += '\n- Целевой пульс: зоны 1-2';
+      text += '\n- RPE: ' + (isLong ? '5' : '3-4');
+    });
+
+    hardcodedResponse = text;
+    systemPrompt = 'Return {"extracted": {}}. ' + JSON_FORMAT;
 
   } else if (isPlanRequest && !isDataUpdate) {
     // ---- PLAN GENERATION ----
@@ -563,17 +715,87 @@ if (stage !== 'completed') {
       templateText += '- ' + d.day + ': ' + d.type + ' — ' + d.description + '\n';
     });
 
+    // Incomplete week handling
+    let weekContext = '';
+    if (isMidWeek && !choosesNextWeek) {
+      // This incomplete week (user chose "эту" or default when Monday)
+      const remainingDayIndexes = [];
+      for (let d = dayOfWeek; d <= 6; d++) remainingDayIndexes.push(d);
+      remainingDayIndexes.push(0); // Sunday
+      const remainingDays = remainingDayIndexes.map((d) => dayNamesRu[d]);
+      const preferredDayIndexes = parsePreferredDayIndexes(data.preferred_training_days);
+      const allowedDayIndexes = preferredDayIndexes.length > 0
+        ? remainingDayIndexes.filter((d) => preferredDayIndexes.includes(d))
+        : remainingDayIndexes;
+      const allowedDays = (allowedDayIndexes.length > 0 ? allowedDayIndexes : remainingDayIndexes)
+        .map((d) => dayNamesRu[d]);
+      const daysUntilSunday = (7 - dayOfWeek) % 7;
+      const remainingDates = [];
+      for (let offset = 0; offset <= daysUntilSunday; offset++) {
+        const d = new Date(today.getTime() + offset * 86400000);
+        remainingDates.push({
+          idx: d.getDay(),
+          name: dayNamesRu[d.getDay()],
+          iso: localDateISO(d)
+        });
+      }
+      const allowedDates = remainingDates.filter((d) => (allowedDayIndexes.length > 0 ? allowedDayIndexes : remainingDayIndexes).includes(d.idx));
+      const allowedDateList = (allowedDates.length > 0 ? allowedDates : remainingDates)
+        .map((d) => d.name + ' ' + d.iso);
+      planWeekStart = localDateISO(today);
+      planWeekEnd = localDateISO(new Date(today.getTime() + daysUntilSunday * 86400000));
+      weekContext = '\n\nВАЖНО: Сегодня ' + todayNameRu + ', неделя уже началась. Составь план ТОЛЬКО на оставшиеся дни: ' + remainingDays.join(', ') + '. Прошедшие дни НЕЛЬЗЯ включать.'
+        + '\nРАЗРЕШЕННЫЕ ДНИ ДЛЯ ТРЕНИРОВОК НА ЭТОЙ НЕДЕЛЕ: ' + allowedDays.join(', ') + '.'
+        + '\nРАЗРЕШЕННЫЕ ДАТЫ ДЛЯ ТРЕНИРОВОК: ' + allowedDateList.join('; ') + '.'
+        + '\nЕсли есть ПРЕДПОЧТИТЕЛЬНЫЕ ДНИ, ставь тренировки ТОЛЬКО в них (из оставшихся).'
+        + '\nЗапрещено планировать тренировки в прошедшие дни, в дни вне разрешенного списка и в даты после ближайшего воскресенья.'
+        + '\nКоличество тренировок может быть МЕНЬШЕ ' + (data.weekly_runs || 3) + ' — планируй только те, что помещаются в оставшиеся дни.';
+    } else if (choosesNextWeek) {
+      // Next full week
+      const daysUntilMonday = (8 - dayOfWeek) % 7 || 7;
+      const nextMonday = new Date(today.getTime() + daysUntilMonday * 86400000);
+      const nextSunday = new Date(nextMonday.getTime() + 6 * 86400000);
+      const nextWeekDates = [];
+      for (let offset = 0; offset <= 6; offset++) {
+        const d = new Date(nextMonday.getTime() + offset * 86400000);
+        nextWeekDates.push(dateLabelRu(d));
+      }
+      planWeekStart = localDateISO(nextMonday);
+      planWeekEnd = localDateISO(nextSunday);
+      weekContext = '\n\nВАЖНО: Составь план на СЛЕДУЮЩУЮ полную неделю начиная с понедельника ' + nextMonday.toISOString().split('T')[0] + '. Планируй ВСЕ ' + (data.weekly_runs || 3) + ' тренировочных дней.';
+      weekContext += '\nРАЗРЕШЕННЫЕ ДАТЫ ЭТОЙ НЕДЕЛИ: ' + nextWeekDates.join('; ') + '.';
+    } else {
+      // Full current week (typically when today is Monday)
+      const daysToSunday = (7 - dayOfWeek) % 7;
+      const weekEnd = new Date(today.getTime() + daysToSunday * 86400000);
+      const currentWeekDates = [];
+      for (let offset = 0; offset <= daysToSunday; offset++) {
+        const d = new Date(today.getTime() + offset * 86400000);
+        currentWeekDates.push(dateLabelRu(d));
+      }
+      planWeekStart = localDateISO(today);
+      planWeekEnd = localDateISO(weekEnd);
+      weekContext = '\nРАЗРЕШЕННЫЕ ДАТЫ ЭТОЙ НЕДЕЛИ: ' + currentWeekDates.join('; ') + '.';
+    }
+
     systemPrompt = 'AI-тренер для ' + firstName + '.' + dateContext
       + hrContext
       + '\n' + fullKnowledge
       + '\n' + templateText
       + strategyContext + trainingsContext + planContext
-      + '\n\nСоставь план на неделю. СТРОГО ' + (data.weekly_runs || 3) + ' тренировочных дней, остальные дни — отдых. НЕ добавляй лишних тренировок!'
+      + '\n\nСоставь план на неделю. СТРОГО ' + (data.weekly_runs || 3) + ' тренировочных дней (если неделя неполная — может быть меньше), остальные дни — отдых. НЕ добавляй лишних тренировок!'
       + (data.preferred_training_days ? '\nПРЕДПОЧТИТЕЛЬНЫЕ ДНИ ТРЕНИРОВОК: ' + data.preferred_training_days + '. Планируй тренировки ИМЕННО в эти дни.' : '')
+      + weekContext
       + (currentPhase ? '\n\nВАЖНО: План должен соответствовать ТЕКУЩЕЙ ФАЗЕ: ' + currentPhase.display_name + '. Фокус: ' + currentPhase.focus + '. Объём: ' + currentPhase.target_weekly_km_min + '-' + currentPhase.target_weekly_km_max + ' км.' : '')
+      + '\nУчитывай ВСЕ данные профиля и тестов: пульс покоя, MAF, maxHR, VO2max, LTHR (если есть).'
+      + '\nУчитывай результаты уже выполненных тренировок пользователя за текущую неделю из блока с тренировками выше (объём, темп, пульс, типы).'
       + '\n\nUSE THE TEMPLATE ABOVE as the base structure. Адаптируй его под текущую фазу и прогресс.'
       + '\nDO NOT use training types not listed in ДОПУСТИМЫЕ ТИПЫ: ' + allowedTypes.join(', ') + '.'
+      + '\nНазвания типов тренировок в ответе пиши ПО-РУССКИ (например: "Лёгкий бег", "Темповая тренировка", "Интервалы", "Длинная пробежка"). Английский ключ можно добавить в скобках.'
+      + '\nСтрого соблюдай соответствие ДЕНЬ НЕДЕЛИ <-> ДАТА. Не выдумывай даты вне диапазона plan_week_start..plan_week_end.'
+      + '\nФормат ответа: каждый день недели с НОВОЙ строки, внутри дня каждое поле с НОВОЙ строки.'
       + '\n\nДля каждой тренировки указывай:\n- Тип и описание\n- Дистанцию в км\n- Целевой темп (мин/км) И скорость (км/ч)\n- Целевой пульс (если известен maxHR)\n- RPE (1-10)'
+      + '\nЗапрещено смешивать единицы объёма в рамках одного плана: объём тренировки указывай ТОЛЬКО в километрах. Минуты можно указывать только как дополнительную справку в скобках.'
       + '\n\n' + JSON_FORMAT + ' extracted: {plan_generated: true, total_km: число}';
 
   } else {
@@ -640,6 +862,8 @@ return [{
     next_stage: nextStage,
     is_plan_generation: isPlanGeneration,
     weekly_runs: data.weekly_runs,
-    hardcoded_response: hardcodedResponse
+    hardcoded_response: hardcodedResponse,
+    plan_week_start: planWeekStart,
+    plan_week_end: planWeekEnd
   }
 }];
