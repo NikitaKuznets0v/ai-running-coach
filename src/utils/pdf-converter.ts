@@ -23,7 +23,8 @@ export async function convertPdfToImage(pdfBuffer: Buffer): Promise<string> {
     // -png: output format PNG
     // -f 1 -l 1: only first page
     // -singlefile: don't add page number to filename
-    await execAsync(`pdftoppm -png -f 1 -l 1 -singlefile "${pdfPath}" "${outputPrefix}"`);
+    // -r 300: 300 DPI for better quality (default is 150)
+    await execAsync(`pdftoppm -png -f 1 -l 1 -r 300 -singlefile "${pdfPath}" "${outputPrefix}"`);
 
     // Read generated PNG
     const imagePath = `${outputPrefix}.png`;

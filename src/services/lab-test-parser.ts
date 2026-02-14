@@ -37,38 +37,68 @@ export async function parseLabTestDocument(fileUrl: string): Promise<LabTestData
     imageUrl = await convertPdfToImage(pdfBuffer);
   }
 
-  const systemPrompt = `You are a specialist in analyzing running lab test results. Extract the following data from the document image.
+  const systemPrompt = `You are an expert in analyzing ProLabSport and similar running lab test reports. Your task is to extract physiological data from the document image with MAXIMUM accuracy.
 
-LOOK FOR these key terms (in Russian or English):
-- VO2max / МПК - in ml/kg/min
-- ПАНО / LT2 / Anaerobic Threshold - heart rate in bpm
-- Аэробный порог / LT1 / Aerobic Threshold - heart rate in bpm
-- ЧСС / HR / Heart Rate zones (Z1, Z2, Z3, Z4, Z5)
-- Темп / Pace at different thresholds
+**CRITICAL: Read EVERY number, table, graph label, and text block in the image. Do NOT skip any section.**
 
-SEARCH CAREFULLY through all text, tables, graphs, and numbers in the image.
+=== KEY TERMS TO SEARCH FOR ===
 
-Return data as JSON:
+1. VO2max / МПК (Maximum Oxygen Consumption):
+   - Look for: "VO2max", "МПК", "ml/kg/min", "мл/кг/мин"
+   - Typical range: 35-80 ml/kg/min
+   - Often in a summary table or header section
+
+2. ANAEROBIC THRESHOLD (ПАНО / LT2):
+   - Look for: "ПАНО", "Анаэробный порог", "LT2", "Lactate Threshold 2", "AnT"
+   - Heart rate usually labeled: "ЧСС на ПАНО", "HR at AnT", "пульс на анаэробном пороге"
+   - Typical range: 140-180 bpm
+
+3. AEROBIC THRESHOLD (AeT / LT1):
+   - Look for: "Аэробный порог", "АэП", "LT1", "AeT", "Lactate Threshold 1"
+   - Heart rate: "ЧСС на АэП", "HR at AeT"
+   - Typical range: 120-160 bpm
+
+4. HEART RATE ZONES (Пульсовые зоны):
+   - Look for tables with: "Зона 1", "Зона 2", "Z1", "Z2", "Zone 1", "Zone 2"
+   - Russian labels: "Восстановление", "Аэробная", "Темповая", "Пороговая", "МПК"
+   - English labels: "Recovery", "Aerobic", "Tempo", "Threshold", "VO2max"
+   - Extract the UPPER boundary (maximum HR) for each zone
+
+5. PACE VALUES (Темп бега):
+   - Look for: "темп", "pace", "мин/км", "min/km", "скорость"
+   - Format: "5:30", "4:45", etc. (minutes:seconds per km)
+   - May be listed for LT1, LT2, and VO2max intensity levels
+
+=== SEARCH STRATEGY ===
+1. Scan header/title section for VO2max and summary metrics
+2. Look for tables with zone breakdowns (usually has 5 rows for Z1-Z5)
+3. Check graph labels and axis values for threshold markers
+4. Search footer and side notes for additional parameters
+5. Look for ANY number followed by "уд/мин", "bpm", "ml/kg/min"
+
+=== OUTPUT FORMAT ===
+Return ONLY valid JSON (no markdown, no explanations):
 {
-  "vo2max": number or null (ml/kg/min),
-  "lt1_hr": number or null (bpm at aerobic threshold),
-  "lt2_hr": number or null (bpm at anaerobic threshold/ПАНО),
-  "vo2max_hr": number or null (bpm at VO2max),
-  "hr_zone1_max": number or null (upper limit of Zone 1),
-  "hr_zone2_max": number or null (upper limit of Zone 2),
-  "hr_zone3_max": number or null (upper limit of Zone 3),
-  "hr_zone4_max": number or null (upper limit of Zone 4),
-  "hr_zone5_max": number or null (upper limit of Zone 5),
-  "lt1_pace_min_km": "M:SS" or null (pace at LT1),
-  "lt2_pace_min_km": "M:SS" or null (pace at LT2),
-  "vo2max_pace_min_km": "M:SS" or null (pace at VO2max)
+  "vo2max": number or null,
+  "lt1_hr": number or null,
+  "lt2_hr": number or null,
+  "vo2max_hr": number or null,
+  "hr_zone1_max": number or null,
+  "hr_zone2_max": number or null,
+  "hr_zone3_max": number or null,
+  "hr_zone4_max": number or null,
+  "hr_zone5_max": number or null,
+  "lt1_pace_min_km": "M:SS" or null,
+  "lt2_pace_min_km": "M:SS" or null,
+  "vo2max_pace_min_km": "M:SS" or null
 }
 
-IMPORTANT:
-- Look at ALL text in the image, including small print, tables, and legends
-- If a value is not found, return null (NOT a string "null")
-- HR zones: return the UPPER boundary of each zone
-- Be thorough - scan the entire image for data`;
+**VALIDATION RULES:**
+- HR values: 50-220 bpm (anything outside is likely wrong)
+- VO2max: 20-90 ml/kg/min
+- HR zones must be in ascending order: Z1 < Z2 < Z3 < Z4 < Z5
+- If you find a value but are uncertain, include it anyway
+- Return null ONLY if the value is truly absent from the image`;
 
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
@@ -96,6 +126,10 @@ IMPORTANT:
   });
 
   const content = response.choices[0]?.message?.content || '{}';
+
+  // Log raw response for debugging
+  console.log('[lab-test-parser] Raw Vision API response:', content);
+
   const data = JSON.parse(content) as LabTestData;
 
   // Set lthr from lt2_hr if not explicitly set
