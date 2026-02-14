@@ -12,6 +12,7 @@ import { handlePlanExplain } from './handlers/plan-explain.js';
 import { logInfo, logError } from './utils/logger.js';
 import { handlePhotoLog } from './handlers/photo-log.js';
 import { transcribeVoice } from './services/openai.js';
+import { parseLabTestDocument } from './services/lab-test-parser.js';
 
 export const bot = new Bot(CONFIG.telegramToken);
 
@@ -250,5 +251,108 @@ bot.on('message:voice', async (ctx) => {
   } catch (err: any) {
     logError('voice_handler_error', { update_id: updateId, telegram_id: telegramId, error: String(err?.message || err) });
     await ctx.reply('Ошибка при обработке голосового. Попробуй ещё раз.');
+  }
+});
+
+bot.on('message:document', async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const updateId = ctx.update.update_id;
+  logInfo('incoming_document', { update_id: updateId, telegram_id: telegramId });
+
+  try {
+    const existing = await getUserByTelegramId(telegramId);
+    if (!existing) {
+      await ctx.reply('Сначала пройди онбординг через /start.');
+      return;
+    }
+
+    // Only process during lab_testing onboarding stage
+    if (existing.onboarding_stage !== 'lab_testing') {
+      await ctx.reply('Документы с лабораторными тестами можно загрузить только во время онбординга на этапе "Лабораторное тестирование".');
+      return;
+    }
+
+    const document = ctx.message.document;
+    if (!document) {
+      await ctx.reply('Не вижу документ. Попробуй ещё раз.');
+      return;
+    }
+
+    // Check if it's an image or PDF
+    const mimeType = document.mime_type || '';
+    if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
+      await ctx.reply('Пожалуйста, отправь изображение (JPG, PNG) или PDF файл с результатами лабораторного теста.');
+      return;
+    }
+
+    await ctx.api.sendChatAction(telegramId, 'typing');
+
+    const file = await ctx.api.getFile(document.file_id);
+    if (!file.file_path) {
+      await ctx.reply('Не удалось получить файл. Попробуй ещё раз.');
+      return;
+    }
+
+    // Download file from Telegram
+    const fileUrl = `https://api.telegram.org/file/bot${CONFIG.telegramToken}/${file.file_path}`;
+
+    logInfo('parsing_lab_test', { update_id: updateId, telegram_id: telegramId, mime_type: mimeType });
+
+    // Parse lab test data using Vision API
+    const labData = await parseLabTestDocument(fileUrl);
+    logInfo('lab_test_parsed', { update_id: updateId, telegram_id: telegramId, data: labData });
+
+    // Update user profile with lab test data
+    const updateData: any = {
+      telegram_id: telegramId,
+      has_lab_testing: true
+    };
+
+    if (labData.vo2max) updateData.vo2max = labData.vo2max;
+    if (labData.lthr) updateData.lthr = labData.lthr;
+    if (labData.hr_zone1_max) updateData.hr_zone1_max = labData.hr_zone1_max;
+    if (labData.hr_zone2_max) updateData.hr_zone2_max = labData.hr_zone2_max;
+    if (labData.hr_zone3_max) updateData.hr_zone3_max = labData.hr_zone3_max;
+    if (labData.hr_zone4_max) updateData.hr_zone4_max = labData.hr_zone4_max;
+    if (labData.hr_zone5_max) updateData.hr_zone5_max = labData.hr_zone5_max;
+
+    const updated = await upsertUserProfile(updateData);
+
+    // Format response
+    let reply = '✅ Данные лабораторного теста успешно распознаны!\n\n';
+    if (labData.vo2max) reply += `• VO2max: ${labData.vo2max} мл/кг/мин\n`;
+    if (labData.lthr) reply += `• LTHR (ПАНО): ${labData.lthr} уд/мин\n`;
+    if (labData.lt1_hr) reply += `• LT1 (аэробный порог): ${labData.lt1_hr} уд/мин\n`;
+
+    if (labData.hr_zone1_max || labData.hr_zone2_max || labData.hr_zone3_max) {
+      reply += `\n📊 Пульсовые зоны:\n`;
+      if (labData.hr_zone1_max) reply += `• Z1 (восстановление): до ${labData.hr_zone1_max} уд/мин\n`;
+      if (labData.hr_zone2_max) reply += `• Z2 (аэробная): до ${labData.hr_zone2_max} уд/мин\n`;
+      if (labData.hr_zone3_max) reply += `• Z3 (темповая): до ${labData.hr_zone3_max} уд/мин\n`;
+      if (labData.hr_zone4_max) reply += `• Z4 (пороговая): до ${labData.hr_zone4_max} уд/мин\n`;
+      if (labData.hr_zone5_max) reply += `• Z5 (VO2max): до ${labData.hr_zone5_max} уд/мин\n`;
+    }
+
+    reply += '\n✨ Эти данные будут учтены при построении твоего тренировочного плана!';
+
+    await ctx.reply(reply);
+
+    // Continue onboarding
+    const { reply: nextReply } = await handleOnboarding(updated, 'да, есть данные');
+    await ctx.reply(nextReply);
+
+    await appendChatHistory({
+      user_id: updated.id,
+      role: 'assistant',
+      content: reply + '\n\n' + nextReply,
+      message_type: 'onboarding',
+      telegram_message_id: ctx.message.message_id
+    });
+
+  } catch (err: any) {
+    logError('document_handler_error', { update_id: updateId, telegram_id: telegramId, error: String(err?.message || err) });
+    await ctx.reply('Ошибка при обработке документа. Попробуй ещё раз или ответь текстом.');
   }
 });
