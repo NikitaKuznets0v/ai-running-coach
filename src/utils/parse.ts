@@ -40,13 +40,55 @@ export function extractRestingHr(message: string): number | null {
 }
 
 export function extractWeeklyRuns(message: string): number | null {
+  // Try to find explicit number 1-7
   const m = message.match(/\b([1-7])\b/);
-  return m ? Number(m[1]) : null;
+  if (m) return Number(m[1]);
+
+  // If no number found, count unique days mentioned
+  const days = extractPreferredDays(message);
+  if (days) {
+    const uniqueDays = new Set(
+      days.split(', ').map(d => {
+        // Normalize: map to abbreviations
+        if (d === 'пн' || d === 'понедельник') return 'пн';
+        if (d === 'вт' || d === 'вторник') return 'вт';
+        if (d === 'ср' || d === 'среда') return 'ср';
+        if (d === 'чт' || d === 'четверг') return 'чт';
+        if (d === 'пт' || d === 'пятница') return 'пт';
+        if (d === 'сб' || d === 'суббота') return 'сб';
+        if (d === 'вс' || d === 'воскресенье') return 'вс';
+        return d;
+      })
+    );
+    return uniqueDays.size;
+  }
+
+  return null;
 }
 
 export function extractPreferredDays(message: string): string | null {
   const m = message.toLowerCase();
-  const found = DAYS.filter((d) => m.includes(d));
+
+  // First check for full names, then abbreviations to avoid duplicates
+  const fullNames = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+  const abbrevs = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+
+  const found: string[] = [];
+
+  // Add full names
+  for (const day of fullNames) {
+    if (m.includes(day)) found.push(day);
+  }
+
+  // Add abbreviations only if their full name wasn't already added
+  for (let i = 0; i < abbrevs.length; i++) {
+    const abbr = abbrevs[i];
+    const full = fullNames[i];
+    if (m.includes(abbr) && !found.includes(full)) {
+      found.push(abbr);
+    }
+  }
+
   if (!found.length) return null;
   return found.join(', ');
 }

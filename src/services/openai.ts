@@ -7,7 +7,7 @@ export async function extractWithOpenAI(systemPrompt: string, userMessage: strin
   if (!CONFIG.openaiApiKey) throw new Error('OPENAI_API_KEY not set');
 
   const res = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     temperature: 0,
     messages: [
       { role: 'system', content: systemPrompt },

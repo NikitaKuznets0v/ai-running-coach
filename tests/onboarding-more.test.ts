@@ -32,6 +32,18 @@ describe('onboarding parsing - extra cases', () => {
     expect(extractWeeklyRuns('3 раза в неделю')).toBe(3);
   });
 
+  it('extracts weekly runs by counting days when no number given', () => {
+    expect(extractWeeklyRuns('понедельник, среда, пятница и суббота')).toBe(4);
+  });
+
+  it('avoids day duplicates (среда vs ср)', () => {
+    expect(extractPreferredDays('понедельник, среда, пятница')).toBe('понедельник, среда, пятница');
+    expect(extractPreferredDays('пн, ср, пт')).toBe('пн, ср, пт');
+    // "среда" includes "ср" but should only return one
+    const days = extractPreferredDays('понедельник, среда, пятница');
+    expect(days?.split(', ').length).toBe(3);
+  });
+
   it('parses pace from min format', () => {
     expect(extract5kPaceSeconds('25 минут на 5к')).toBe(300);
   });
