@@ -9,6 +9,7 @@ import { renderPlan } from '../ai/presenter.js';
 import { saveWeeklyPlan } from '../services/weekly-plan.js';
 import { formatStrategyPreview } from '../utils/format-strategy.js';
 import { extractStartDate } from '../utils/parse.js';
+import { predictRaceTime, formatTime, assessGoalRealism } from '../utils/race-predictor.js';
 
 function isStartCommand(text: string): boolean {
   return /^\/?start$/i.test(text.trim());
@@ -21,6 +22,44 @@ function generateDatesFromStart(startDateStr: string): Date[] {
     dates.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
   }
   return dates;
+}
+
+function buildOnboardingSummary(user: UserProfile): string {
+  const distanceNames: Record<string, string> = {
+    '5k': '5 км',
+    '10k': '10 км',
+    'half': 'полумарафон',
+    'marathon': 'марафон'
+  };
+
+  const distance = distanceNames[user.race_distance || ''] || user.race_distance_km ? `${user.race_distance_km} км` : 'дистанцию';
+  const raceDate = user.race_date || 'скоро';
+  const targetTime = user.target_time_seconds ? formatTime(user.target_time_seconds) : null;
+
+  let summary = `Отлично! Я понял:\n`;
+  summary += `📅 Мы готовимся к забегу **${distance}** на **${raceDate}**.\n`;
+  if (targetTime) {
+    summary += `🎯 Твоя цель — пробежать за **${targetTime}**.\n`;
+  }
+
+  // Add race prediction if we have 5K pace
+  if (user.current_5k_pace_seconds && user.race_distance) {
+    const prediction = predictRaceTime(user.current_5k_pace_seconds, user.race_distance);
+    const assessment = targetTime && user.target_time_seconds
+      ? assessGoalRealism(user.target_time_seconds, prediction.realistic)
+      : null;
+
+    summary += `\n**Мой прогноз** на основе твоего текущего темпа (5 км за ${formatTime(user.current_5k_pace_seconds)}):\n`;
+    summary += `• Оптимистичный сценарий: **${formatTime(prediction.optimistic)}**\n`;
+    summary += `• Реалистичный прогноз: **${formatTime(prediction.realistic)}**\n`;
+    summary += `• Консервативная оценка: **${formatTime(prediction.pessimistic)}**\n`;
+
+    if (assessment) {
+      summary += `\n💬 ${assessment.message}\n`;
+    }
+  }
+
+  return summary;
 }
 
 export async function handleOnboarding(user: UserProfile, messageText: string) {
@@ -167,6 +206,11 @@ export async function handleOnboarding(user: UserProfile, messageText: string) {
       reply += dateNote + '\n\n';
     }
 
+    // Add summary of collected data + prediction
+    reply += buildOnboardingSummary(updated);
+    reply += '\n\n';
+
+    // Show strategy
     if (strategy?.phases) {
       reply += formatStrategyPreview(strategy.phases, updated.race_date || '', updated.race_distance || '');
     } else {
