@@ -7,7 +7,7 @@ const DAYS = [
 
 export function extractLevel(message: string): Level | null {
   const m = message.toLowerCase();
-  if (/нович/i.test(m)) return 'beginner';
+  if (/нович|начинающ/i.test(m)) return 'beginner';
   if (/любител/i.test(m)) return 'intermediate';
   if (/продвин|опытн/i.test(m)) return 'advanced';
   if (/beginner/i.test(m)) return 'beginner';
@@ -64,7 +64,7 @@ export function extractPreferredDays(message: string): PreferredDaysResult | nul
   const m = message.toLowerCase();
 
   // Check if "или" (or) is present between days
-  const hasOr = /\b(или)\b/.test(m);
+  const hasOr = /\sили\s|,\s*или\s|\sили,/.test(m);
 
   // Patterns with both full and abbreviated forms
   const dayPatterns = [
@@ -173,12 +173,19 @@ function parseTargetTime(text: string): number | null {
   const m = text.toLowerCase();
 
   // Check for "выбежать из X" pattern - means "faster than X" (typically -1 min)
-  const runUnder = m.match(/выбежать\s*из\s*(\d{1,2}):(\d{2})/);
-  if (runUnder) {
-    const hours = Number(runUnder[1]);
-    const mins = Number(runUnder[2]);
+  // Supports: "выбежать из 1:50" (h:mm) or "выбежать из 45" (minutes only)
+  const runUnderHM = m.match(/выбежать\s*из\s*(\d{1,2}):(\d{2})/);
+  if (runUnderHM) {
+    const hours = Number(runUnderHM[1]);
+    const mins = Number(runUnderHM[2]);
     const targetSeconds = hours * 3600 + mins * 60;
     return targetSeconds - 60; // subtract 1 minute
+  }
+
+  const runUnderMin = m.match(/выбежать\s*из\s*(\d{2,3})(?!\:)/);
+  if (runUnderMin) {
+    const mins = Number(runUnderMin[1]);
+    return mins * 60 - 60; // subtract 1 minute
   }
 
   // "1ч 50м", "2ч 30м"
